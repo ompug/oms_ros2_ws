@@ -4,6 +4,10 @@ If setup reports that sudo authentication is required, run the installer from
 an interactive terminal. Review the apt simulation in `logs/apt/`; the script
 does not proceed if core desktop packages would be removed.
 
+If rosdep reports that it is not initialized, run `sudo rosdep init` once.
+Then source `setup_env.sh`, set `ROS_HOME` to the workspace `.ros` directory,
+and run `rosdep update --rosdistro humble` before the project rosdep install.
+
 If the build cannot find GTSAM, verify `apt-cache policy ros-humble-gtsam` and
 that `/opt/ros/humble/setup.bash` was sourced. Preserve the exact package and
 CMake error before considering the documented source fallback.
@@ -22,4 +26,3 @@ reference static transforms are enabled for desktop data.
 
 If shutdown exceeds ten seconds, save the launch log and check for project
 processes before retrying. `test.sh` signals only the process group it starts.
-

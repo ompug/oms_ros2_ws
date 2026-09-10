@@ -6,7 +6,11 @@ Establish a reproducible native ROS 2 Humble workspace at `/home/ompug/oms_ros2_
 
 Robot deployment, SSH, motor commands, and robot-specific tuning are excluded.
 
-**Current status:** read-only investigation completed; nothing installed, cloned, modified, built, or launched. Plan Mode prevents writing this file or starting implementation. When implementation becomes available, save this plan as `PROJECT_PLAN.md` before any other project changes.
+**Current status (2026-09-10):** the desktop implementation is built and its
+unit, launch, QoS, shutdown, synthetic runtime, TF, and RViz initialization
+checks pass. System-wide rosdep initialization awaits one privileged command.
+Recorded-data testing is blocked by the official Google Drive download quota.
+Robot deployment remains outside this desktop phase.
 
 ## 2. Current machine assessment
 
@@ -132,14 +136,14 @@ Do not push remotely.
 
 Follow the [official Humble Ubuntu installation instructions](https://github.com/ros2/ros2_documentation/blob/humble/source/Installation/Ubuntu-Install-Debs.rst), whose source was accessible when the rendered documentation site denied access.
 
-- [ ] Save the plan and create the project directories.
-- [ ] Record initial package inventory and apt configuration.
-- [ ] Restore official Jammy updates repositories with a documented, backed-up change.
-- [ ] Install the official `ros2-apt-source` package, retaining its version and installer underneath the project.
-- [ ] Refresh apt metadata and simulate installation.
-- [ ] Resolve the documented systemd/udev prerequisite without accepting removal of desktop or core system packages.
-- [ ] Install `ros-humble-desktop`, required compiler/build tools, Git, colcon, rosdep and Python venv support.
-- [ ] Import pinned upstream and repair manifests.
+- [x] Save the plan and create the project directories.
+- [x] Record initial package inventory and apt configuration.
+- [x] Restore official Jammy updates repositories with a documented, backed-up change.
+- [x] Install the official `ros2-apt-source` package, retaining its version and installer underneath the project.
+- [x] Refresh apt metadata and simulate installation.
+- [x] Resolve the documented systemd/udev prerequisite without accepting removal of desktop or core system packages.
+- [x] Install `ros-humble-desktop`, required compiler/build tools, Git, colcon, rosdep and Python venv support.
+- [x] Import pinned upstream and repair manifests.
 - [ ] Initialize rosdep only if necessary; keep its user cache beneath the project.
 - [ ] Run:
 
@@ -147,7 +151,7 @@ Follow the [official Humble Ubuntu installation instructions](https://github.com
 rosdep install --from-paths src --ignore-src --rosdistro humble -r -y
 ```
 
-- [ ] Record every newly installed package and version using before/after inventories.
+- [x] Record every newly installed package and version using before/after inventories.
 
 Do not modify shell startup files or GPU configuration. The HTTPS endpoint for `packages.ros.org` returned a hostname-certificate error during inspection; use the official signed apt configuration, preserving signature verification.
 
@@ -199,10 +203,10 @@ Synthetic scans must include ground and varied surfaces. Use them for determinis
 
 Start with the upstream [Jackal VLP-16 dataset](https://github.com/RobustFieldAutonomyLab/jackal_dataset_20170608). Its linked public folder was readable and lists `2017-06-08-15-49-45_0.bag` and three subsequent segments.
 
-- [ ] Download the first segment into `data/raw/`; record URL, filename, size and SHA-256.
-- [ ] Inspect its connection metadata, scan fields, timestamps, frame and coverage.
-- [ ] Create `.venv/` using system Python.
-- [ ] Install pinned `rosbags==0.11.5`, whose published Python requirement includes 3.10; lock resolved dependencies.
+- [ ] Download the first segment into `data/raw/`; record URL, filename, size and SHA-256. **Blocked:** official Google Drive quota.
+- [ ] Inspect its connection metadata, scan fields, timestamps, frame and coverage. **Blocked:** no bytes supplied by the host.
+- [x] Create `.venv/` using system Python.
+- [x] Install pinned `rosbags==0.11.5`, whose published Python requirement includes 3.10; lock resolved dependencies.
 - [ ] Convert only `/velodyne_points` into Humble-compatible SQLite3 rosbag2, explicitly selecting compatible writer metadata and ROS 2 Humble types.
 - [ ] Verify with `ros2 bag info` before launch.
 - [ ] Replay at 1× with `/clock`; exclude recorded `/tf`, `/tf_static`, odometry and IMU.
@@ -319,18 +323,18 @@ Create all requested scripts:
 
 Add dataset fetch/conversion helpers and a source/dependency lock record.
 
-- [ ] Save plan.
-- [ ] Establish documentation and Git baseline.
-- [ ] Install and verify ROS/toolchain.
-- [ ] Import upstream and apply traceable fixes.
-- [ ] Resolve dependencies and build.
-- [ ] Verify launch, parameters, QoS and shutdown.
-- [ ] Run regression and synthetic tests.
+- [x] Save plan.
+- [x] Establish documentation and Git baseline.
+- [x] Install and verify ROS/toolchain.
+- [x] Import upstream and apply traceable fixes.
+- [ ] Resolve dependencies and build. **Build passed; rosdep initialization remains.**
+- [x] Verify launch, parameters, QoS and shutdown.
+- [x] Run regression and synthetic tests.
 - [ ] Acquire, convert and replay recorded data.
 - [ ] Verify TF, odometry, mapping and RViz.
-- [ ] Encode successful procedures in scripts.
-- [ ] Clean-build and repeat scripted runtime validation.
-- [ ] Finish README, environment, build, testing, troubleshooting and porting documents.
+- [x] Encode successful procedures in scripts.
+- [x] Clean-build and repeat scripted runtime validation.
+- [x] Finish README, environment, build, testing, troubleshooting and porting documents.
 
 ## 16. Definition of done
 

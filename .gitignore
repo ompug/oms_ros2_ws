@@ -1,9 +1,13 @@
 /build/
 /install/
 /log/
-/logs/*.log
-/logs/*.json
-/logs/inventory-*.tsv
+/logs/*
+!/logs/README.md
+!/logs/apt/
+/logs/apt/*
+!/logs/apt/sources.list-initial-20260910T193825Z
+!/logs/apt/ros2-apt-source-installer-1.2.0~jammy.deb
+/Ogre.log
 /.ros/
 /.venv/
 /cache/

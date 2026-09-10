@@ -28,11 +28,24 @@ The matching apt source backup is
 Jammy main, restricted, universe, multiverse, and security were enabled.
 Jammy updates entries were commented out, and no ROS repository was present.
 
-## Installed state
+## Installed state — 2026-09-10
 
-Pending `install_dependencies.sh`. That script generates
-`docs/INSTALLED_VERSIONS.md` and records the official
-`ros2-apt-source` package metadata, apt simulation, complete installation log,
-before/after inventories, and installed versions. Append the observed ROS,
-GTSAM, PCL, Eigen, Boost, compiler, CMake, colcon, rosdep, and RViz versions
-after it completes.
+`install_dependencies.sh` installed the official ROS 2 Humble desktop package,
+the native build toolchain, PCL, Eigen, Boost, and the official Humble GTSAM
+4.2 package. The exact versions are in `docs/INSTALLED_VERSIONS.md`.
+
+The post-install dpkg inventory is
+`logs/inventory-after-20260910T202635Z.tsv` (SHA-256
+`9428143d146d308c202ba6a9944679ca7445daafdfefa78671e0dc37b5330f42`).
+The newly installed package comparison is
+`logs/inventory-installed-20260910T202635Z.tsv` (SHA-256
+`09249e63dd4751a6057be6435974b913274f2918633683d658306689583b649a`).
+
+ROS and the native dependencies are installed and tested. System-wide rosdep
+initialization still requires the one privileged `sudo rosdep init` command;
+the project keeps subsequent rosdep cache data beneath `.ros/`.
+
+RViz created an OpenGL render window and subscribed to the configured point
+cloud topics under the Wayland session. Desktop screenshot capture could not be
+used for visual inspection because GNOME denied D-Bus capture and Qt returned a
+black Wayland image; see `docs/TESTING.md`.

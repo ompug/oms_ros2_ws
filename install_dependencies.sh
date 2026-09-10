@@ -74,7 +74,9 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get install -y "${PACKAGES[@]}" \
   2>&1 | tee "${LOG_DIR}/apt/install-${STAMP}.log"
 
 export ROS_HOME="${ROS_HOME_DIR}"
+set +u
 source /opt/ros/humble/setup.bash
+set -u
 if [[ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]]; then
   sudo rosdep init
 fi

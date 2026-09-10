@@ -1,0 +1,112 @@
+From e0d88226fe17df53ae5594b3b76ba90341c1eb74 Mon Sep 17 00:00:00 2001
+From: Om Pughat <76464389+ompug@users.noreply.github.com>
+Date: Thu, 10 Sep 2026 16:29:48 -0400
+Subject: [PATCH] Polish Humble build and launch diagnostics
+
+---
+ src/LeGO-LOAM/CMakeLists.txt             |  4 ++++
+ src/LeGO-LOAM/launch/run.launch.py       | 15 ++++++++++++---
+ src/LeGO-LOAM/src/featureAssociation.cpp |  3 ++-
+ src/LeGO-LOAM/src/imageProjection.cpp    |  2 +-
+ src/LeGO-LOAM/src/mapOptmization.cpp     |  3 ++-
+ 5 files changed, 21 insertions(+), 6 deletions(-)
+
+diff --git a/src/LeGO-LOAM/CMakeLists.txt b/src/LeGO-LOAM/CMakeLists.txt
+index f66e958..2ba85c0 100644
+--- a/src/LeGO-LOAM/CMakeLists.txt
++++ b/src/LeGO-LOAM/CMakeLists.txt
+@@ -1,6 +1,10 @@
+ cmake_minimum_required(VERSION 3.5)
+ project(lego_loam_sr)
+ 
++if(POLICY CMP0074)
++  cmake_policy(SET CMP0074 NEW)
++endif()
++
+ # Default to C++14
+ if(NOT CMAKE_CXX_STANDARD)
+   set(CMAKE_CXX_STANDARD 14)
+diff --git a/src/LeGO-LOAM/launch/run.launch.py b/src/LeGO-LOAM/launch/run.launch.py
+index 088168f..a23463d 100644
+--- a/src/LeGO-LOAM/launch/run.launch.py
++++ b/src/LeGO-LOAM/launch/run.launch.py
+@@ -28,7 +28,10 @@ def generate_launch_description():
+     package='tf2_ros',
+     executable='static_transform_publisher',
+     name='camera_init_to_map',
+-    arguments=['0', '0', '0', '1.570795', '0', '1.570795', 'map', 'camera_init'],
++    arguments=[
++      '--x', '0', '--y', '0', '--z', '0',
++      '--yaw', '1.570795', '--pitch', '0', '--roll', '1.570795',
++      '--frame-id', 'map', '--child-frame-id', 'camera_init'],
+     parameters=[{'use_sim_time': use_sim_time}],
+     condition=IfCondition(publish_reference_tf),
+   )
+@@ -37,7 +40,10 @@ def generate_launch_description():
+     package='tf2_ros',
+     executable='static_transform_publisher',
+     name='base_link_to_camera',
+-    arguments=['0', '0', '0', '-1.570795', '-1.570795', '0', 'camera', 'base_link'],
++    arguments=[
++      '--x', '0', '--y', '0', '--z', '0',
++      '--yaw', '-1.570795', '--pitch', '-1.570795', '--roll', '0',
++      '--frame-id', 'camera', '--child-frame-id', 'base_link'],
+     parameters=[{'use_sim_time': use_sim_time}],
+     condition=IfCondition(publish_reference_tf),
+   )
+@@ -46,7 +52,10 @@ def generate_launch_description():
+     package='tf2_ros',
+     executable='static_transform_publisher',
+     name='velodyne_to_base_link',
+-    arguments=['0', '0', '0', '0', '0', '0','base_link','velodyne'],
++    arguments=[
++      '--x', '0', '--y', '0', '--z', '0',
++      '--yaw', '0', '--pitch', '0', '--roll', '0',
++      '--frame-id', 'base_link', '--child-frame-id', 'velodyne'],
+     parameters=[{'use_sim_time': use_sim_time}],
+     condition=IfCondition(publish_reference_tf),
+   )
+diff --git a/src/LeGO-LOAM/src/featureAssociation.cpp b/src/LeGO-LOAM/src/featureAssociation.cpp
+index d40f386..6357d05 100644
+--- a/src/LeGO-LOAM/src/featureAssociation.cpp
++++ b/src/LeGO-LOAM/src/featureAssociation.cpp
+@@ -122,7 +122,8 @@ FeatureAssociation::FeatureAssociation(const std::string &name, Channel<Projecti
+ 
+ FeatureAssociation::~FeatureAssociation()
+ {
+-  _input_channel.send({});
++  ProjectionOut stop_signal;
++  _input_channel.send(std::move(stop_signal));
+   _run_thread.join();
+ }
+ 
+diff --git a/src/LeGO-LOAM/src/imageProjection.cpp b/src/LeGO-LOAM/src/imageProjection.cpp
+index acd1aee..82c1cb0 100644
+--- a/src/LeGO-LOAM/src/imageProjection.cpp
++++ b/src/LeGO-LOAM/src/imageProjection.cpp
+@@ -187,7 +187,7 @@ void ImageProjection::cloudHandler(
+ 
+   const auto has_float_field = [laserCloudMsg](const std::string &name) {
+     return std::any_of(laserCloudMsg->fields.begin(), laserCloudMsg->fields.end(),
+-                       [&name](const sensor_msgs::msg::PointField &field) {
++                       [&name, laserCloudMsg](const sensor_msgs::msg::PointField &field) {
+                          return field.name == name && field.count >= 1 &&
+                                 field.datatype == sensor_msgs::msg::PointField::FLOAT32 &&
+                                 field.offset + sizeof(float) <= laserCloudMsg->point_step;
+diff --git a/src/LeGO-LOAM/src/mapOptmization.cpp b/src/LeGO-LOAM/src/mapOptmization.cpp
+index 6fc364d..edd46e4 100644
+--- a/src/LeGO-LOAM/src/mapOptmization.cpp
++++ b/src/LeGO-LOAM/src/mapOptmization.cpp
+@@ -137,7 +137,8 @@ MapOptimization::MapOptimization(const std::string &name, Channel<AssociationOut
+ 
+ MapOptimization::~MapOptimization()
+ {
+-  _input_channel.send({});
++  AssociationOut stop_signal;
++  _input_channel.send(std::move(stop_signal));
+   _run_thread.join();
+ 
+   _publish_global_signal.send(false);
+-- 
+2.34.1
+

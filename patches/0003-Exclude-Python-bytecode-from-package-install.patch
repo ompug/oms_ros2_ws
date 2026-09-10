@@ -1,0 +1,25 @@
+From dac53e6c27eb22be8fcc0e1b020b381e62c72bb7 Mon Sep 17 00:00:00 2001
+From: Om Pughat <76464389+ompug@users.noreply.github.com>
+Date: Thu, 10 Sep 2026 16:31:35 -0400
+Subject: [PATCH] Exclude Python bytecode from package install
+
+---
+ src/LeGO-LOAM/CMakeLists.txt | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/src/LeGO-LOAM/CMakeLists.txt b/src/LeGO-LOAM/CMakeLists.txt
+index 2ba85c0..963a9e0 100644
+--- a/src/LeGO-LOAM/CMakeLists.txt
++++ b/src/LeGO-LOAM/CMakeLists.txt
+@@ -87,6 +87,8 @@ install(DIRECTORY
+   launch
+   rviz
+   DESTINATION share/${PROJECT_NAME}
++  PATTERN "__pycache__" EXCLUDE
++  PATTERN "*.pyc" EXCLUDE
+ )
+ 
+ ament_package()
+-- 
+2.34.1
+

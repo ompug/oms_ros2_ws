@@ -56,6 +56,10 @@ source setup_env.sh
 ros2 bag play data/converted/2017-06-08-15-49-45_0 --clock --rate 1.0
 ```
 
+The official Google Drive host currently refuses the dataset download because
+its quota is exceeded. The exact file IDs and current blocker are recorded in
+`docs/DATASET.md`; rerun the fetch helper when the host permits access.
+
 Start LeGO-LOAM and its subscribers before playback. Restart both launch and
 playback for a second run instead of looping timestamps backward.
 
@@ -69,4 +73,3 @@ extrinsics and TF ownership are configured.
 
 See `docs/BUILD.md`, `docs/TESTING.md`, `docs/TROUBLESHOOTING.md`, and
 `docs/SCOUT_MINI_PORTING.md` for operational details and current evidence.
-

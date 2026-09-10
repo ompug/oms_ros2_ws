@@ -8,6 +8,8 @@
 - Import: download the GitHub commit archive, verify the SHA-256, and extract
   its top-level contents into `src/`.
 - License: upstream BSD license is preserved as `src/LICENSE`.
+- Local source changes are the commits `7740085`, `e0d8822`, and `dac53e6`, exported in
+  order under `patches/` for replay against the pinned import.
 
 ## Dependencies
 
@@ -16,4 +18,3 @@ repository by `install_dependencies.sh`. The selected package versions and
 the before/after package inventory are written under `logs/` during install.
 Dataset tooling uses `rosbags==0.11.5`; the fully resolved Python environment
 is recorded in `docs/python-requirements.lock` after installation.
-

@@ -23,18 +23,20 @@ Synthetic scans model a flat ground plane and sector-based vertical surfaces.
 They establish deterministic projection and message plumbing; they do not
 establish trajectory accuracy or recorded-data SLAM quality.
 
-## Current results
+## Current results — 2026-09-10
 
 | Check | Status | Evidence |
 |---|---|---|
 | Initial machine inventory | passed | `logs/inventory-initial-20260910T193825Z.tsv` |
 | Pinned upstream import | passed | local commits and `docs/SOURCE_LOCK.md` |
-| Shell/Python static syntax | not tested | Run before dependency installation |
-| ROS installation and package build | not tested | Requires sudo installer run |
-| Automated synthetic runtime suite | not tested | Requires successful build |
-| Recorded Jackal segment, run 1 | not tested | Requires dataset fetch/conversion |
-| Recorded Jackal segment, run 2 | not tested | Requires run 1 completion |
-| RViz display initialization/rendering | not tested | Requires ROS and GUI run |
+| Shell/Python/XML static syntax | passed | Local syntax checks |
+| ROS installation and package build | passed | `logs/build-20260910T201931Z.log` |
+| Clean rebuild | passed | Final warning-free build: `logs/build-20260910T203151Z.log` |
+| Automated synthetic runtime suite | passed | Initial `logs/test-20260910T201952Z/result.json`; final post-clean-build `logs/test-20260910T203243Z/result.json` |
+| Recorded Jackal segment, run 1 | blocked | Official Google Drive quota; see `docs/DATASET.md` |
+| Recorded Jackal segment, run 2 | blocked | Run 1 data unavailable |
+| RViz OpenGL initialization and topic subscription | passed | `logs/rviz-20260910T202149Z/` |
+| RViz screenshot inspection | blocked | GNOME denied D-Bus capture; Qt capture was black under Wayland |
 | Loop-closure behavior | not tested | Requires adequate recorded trajectory |
 | Trajectory accuracy | not tested | Dataset has no independent ground truth in this workflow |
 | Robot integration | blocked | Robot inspection is explicitly outside the desktop phase |
@@ -43,4 +45,3 @@ Recorded-data acceptance requires advancing input timestamps, nonempty feature
 and map clouds, multiple keyframes, finite poses, normalized quaternions, and a
 trajectory visually plausible for the scene. Message existence alone is not a
 pass.
-
