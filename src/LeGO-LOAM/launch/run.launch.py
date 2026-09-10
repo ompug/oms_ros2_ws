@@ -28,7 +28,10 @@ def generate_launch_description():
     package='tf2_ros',
     executable='static_transform_publisher',
     name='camera_init_to_map',
-    arguments=['0', '0', '0', '1.570795', '0', '1.570795', 'map', 'camera_init'],
+    arguments=[
+      '--x', '0', '--y', '0', '--z', '0',
+      '--yaw', '1.570795', '--pitch', '0', '--roll', '1.570795',
+      '--frame-id', 'map', '--child-frame-id', 'camera_init'],
     parameters=[{'use_sim_time': use_sim_time}],
     condition=IfCondition(publish_reference_tf),
   )
@@ -37,7 +40,10 @@ def generate_launch_description():
     package='tf2_ros',
     executable='static_transform_publisher',
     name='base_link_to_camera',
-    arguments=['0', '0', '0', '-1.570795', '-1.570795', '0', 'camera', 'base_link'],
+    arguments=[
+      '--x', '0', '--y', '0', '--z', '0',
+      '--yaw', '-1.570795', '--pitch', '-1.570795', '--roll', '0',
+      '--frame-id', 'camera', '--child-frame-id', 'base_link'],
     parameters=[{'use_sim_time': use_sim_time}],
     condition=IfCondition(publish_reference_tf),
   )
@@ -46,7 +52,10 @@ def generate_launch_description():
     package='tf2_ros',
     executable='static_transform_publisher',
     name='velodyne_to_base_link',
-    arguments=['0', '0', '0', '0', '0', '0','base_link','velodyne'],
+    arguments=[
+      '--x', '0', '--y', '0', '--z', '0',
+      '--yaw', '0', '--pitch', '0', '--roll', '0',
+      '--frame-id', 'base_link', '--child-frame-id', 'velodyne'],
     parameters=[{'use_sim_time': use_sim_time}],
     condition=IfCondition(publish_reference_tf),
   )

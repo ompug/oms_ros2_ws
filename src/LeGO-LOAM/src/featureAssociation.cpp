@@ -122,7 +122,8 @@ FeatureAssociation::FeatureAssociation(const std::string &name, Channel<Projecti
 
 FeatureAssociation::~FeatureAssociation()
 {
-  _input_channel.send({});
+  ProjectionOut stop_signal;
+  _input_channel.send(std::move(stop_signal));
   _run_thread.join();
 }
 

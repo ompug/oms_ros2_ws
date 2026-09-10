@@ -187,7 +187,7 @@ void ImageProjection::cloudHandler(
 
   const auto has_float_field = [laserCloudMsg](const std::string &name) {
     return std::any_of(laserCloudMsg->fields.begin(), laserCloudMsg->fields.end(),
-                       [&name](const sensor_msgs::msg::PointField &field) {
+                       [&name, laserCloudMsg](const sensor_msgs::msg::PointField &field) {
                          return field.name == name && field.count >= 1 &&
                                 field.datatype == sensor_msgs::msg::PointField::FLOAT32 &&
                                 field.offset + sizeof(float) <= laserCloudMsg->point_step;

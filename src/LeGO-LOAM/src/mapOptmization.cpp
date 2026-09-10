@@ -137,7 +137,8 @@ MapOptimization::MapOptimization(const std::string &name, Channel<AssociationOut
 
 MapOptimization::~MapOptimization()
 {
-  _input_channel.send({});
+  AssociationOut stop_signal;
+  _input_channel.send(std::move(stop_signal));
   _run_thread.join();
 
   _publish_global_signal.send(false);
