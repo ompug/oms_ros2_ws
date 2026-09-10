@@ -1,0 +1,72 @@
+# ROS 2 Humble LeGO-LOAM workspace
+
+This workspace vendors `fishros/LeGO-LOAM-ROS2` at commit
+`088856332b71e4bc4cc0f08cd8282ac370ca444a`, fixes its Humble launch and input
+safety defects, and provides repeatable native build, test, dataset, and
+migration workflows. It is currently a personal-computer baseline. Nothing in
+this project connects to a robot or publishes motor commands.
+
+## Local setup
+
+Ubuntu 22.04 amd64 is the supported host.
+
+```bash
+./install_dependencies.sh
+./clean_build.sh
+./test.sh
+```
+
+The installer adds the official ROS 2 apt source, installs Humble Desktop and
+the packaged GTSAM 4.2 dependency, runs rosdep, and creates an isolated Python
+environment for bag conversion. It records apt and package evidence under
+`logs/`. It does not edit shell startup files.
+
+For an interactive shell:
+
+```bash
+source setup_env.sh
+```
+
+This selects ROS domain 42 and localhost-only discovery unless those variables
+are already set.
+
+## Run synthetic or recorded data
+
+```bash
+./launch_lego_loam.sh rviz:=true use_sim_time:=true
+```
+
+Launch arguments are:
+
+- `points_topic:=/velodyne_points`
+- `params_file:=<installed VLP-16 YAML>`
+- `use_sim_time:=true`
+- `rviz:=true`
+- `publish_reference_tf:=true`
+
+The included `map`, `camera_init`, `camera`, `base_link`, and `velodyne` static
+transforms are reference assumptions for desktop data only.
+
+To prepare the Jackal recording:
+
+```bash
+./scripts/fetch_dataset.sh
+./scripts/convert_dataset.sh
+source setup_env.sh
+ros2 bag play data/converted/2017-06-08-15-49-45_0 --clock --rate 1.0
+```
+
+Start LeGO-LOAM and its subscribers before playback. Restart both launch and
+playback for a second run instead of looping timestamps backward.
+
+## Robot migration
+
+Copy the tracked source, configuration, scripts, and documentation. Exclude
+`build/`, `install/`, `log/`, `logs/`, `.venv/`, caches, and downloaded bags.
+On the robot, complete every item in `docs/SCOUT_MINI_PORTING.md`, install native
+dependencies, and rebuild. Disable `publish_reference_tf` until measured robot
+extrinsics and TF ownership are configured.
+
+See `docs/BUILD.md`, `docs/TESTING.md`, `docs/TROUBLESHOOTING.md`, and
+`docs/SCOUT_MINI_PORTING.md` for operational details and current evidence.
+

@@ -1,0 +1,771 @@
+From 7740085c281b97c9e4afa18ed800e2a155d7ddea Mon Sep 17 00:00:00 2001
+From: Om Pughat <76464389+ompug@users.noreply.github.com>
+Date: Thu, 10 Sep 2026 15:43:49 -0400
+Subject: [PATCH] Harden projection and expose launch controls
+
+---
+ src/LeGO-LOAM/CMakeLists.txt                  |   6 +
+ .../include/lego_loam/projection_math.h       |  30 ++++
+ src/LeGO-LOAM/include/lego_loam/utility.h     |   1 +
+ src/LeGO-LOAM/launch/run.launch.py            |  43 ++++--
+ src/LeGO-LOAM/package.xml                     |  31 ++--
+ src/LeGO-LOAM/rviz/test.rviz                  |  53 ++++++-
+ src/LeGO-LOAM/src/featureAssociation.cpp      |  58 +++++---
+ src/LeGO-LOAM/src/imageProjection.cpp         | 134 ++++++++++++++----
+ src/LeGO-LOAM/src/imageProjection.h           |   1 +
+ src/LeGO-LOAM/src/main.cpp                    |   2 +-
+ src/LeGO-LOAM/src/mapOptmization.cpp          |  26 +++-
+ src/LeGO-LOAM/test/test_projection_math.cpp   |  33 +++++
+ src/cloud_msgs/package.xml                    |   4 +-
+ 13 files changed, 342 insertions(+), 80 deletions(-)
+ create mode 100644 src/LeGO-LOAM/include/lego_loam/projection_math.h
+ create mode 100644 src/LeGO-LOAM/test/test_projection_math.cpp
+
+diff --git a/src/LeGO-LOAM/CMakeLists.txt b/src/LeGO-LOAM/CMakeLists.txt
+index fe43f6c..f66e958 100644
+--- a/src/LeGO-LOAM/CMakeLists.txt
++++ b/src/LeGO-LOAM/CMakeLists.txt
+@@ -67,6 +67,12 @@ add_executable(${PROJECT_NAME} src/imageProjection.cpp src/featureAssociation.cp
+ target_link_libraries(${PROJECT_NAME} ${PCL_LIBRARIES} gtsam)
+ ament_target_dependencies(${PROJECT_NAME} ${dependencies} Eigen3)
+ 
++if(BUILD_TESTING)
++  find_package(ament_cmake_gtest REQUIRED)
++  ament_add_gtest(test_projection_math test/test_projection_math.cpp)
++  target_include_directories(test_projection_math PRIVATE include)
++endif()
++
+ install(TARGETS
+   ${PROJECT_NAME}
+   DESTINATION lib/${PROJECT_NAME}
+diff --git a/src/LeGO-LOAM/include/lego_loam/projection_math.h b/src/LeGO-LOAM/include/lego_loam/projection_math.h
+new file mode 100644
+index 0000000..244f9e5
+--- /dev/null
++++ b/src/LeGO-LOAM/include/lego_loam/projection_math.h
+@@ -0,0 +1,30 @@
++#ifndef LEGO_LOAM_PROJECTION_MATH_H
++#define LEGO_LOAM_PROJECTION_MATH_H
++
++#include <cmath>
++
++namespace lego_loam {
++
++constexpr float kDegreesToRadians = 3.14159265358979323846F / 180.0F;
++
++inline float verticalAngle(float x, float y, float z) {
++  return std::atan2(z, std::sqrt(x * x + y * y));
++}
++
++inline int verticalRow(float angle_radians, float bottom_degrees,
++                       float resolution_radians) {
++  const float offset = -(bottom_degrees - 0.1F) * kDegreesToRadians;
++  return static_cast<int>((angle_radians + offset) / resolution_radians);
++}
++
++inline bool isGroundPair(float dx, float dy, float dz,
++                         float mount_angle_radians,
++                         float threshold_radians = 10.0F * kDegreesToRadians) {
++  const float angle = std::atan2(dz, std::sqrt(dx * dx + dy * dy));
++  return std::isfinite(angle) &&
++         std::abs(angle - mount_angle_radians) <= threshold_radians;
++}
++
++}  // namespace lego_loam
++
++#endif  // LEGO_LOAM_PROJECTION_MATH_H
+diff --git a/src/LeGO-LOAM/include/lego_loam/utility.h b/src/LeGO-LOAM/include/lego_loam/utility.h
+index 6333f2c..03500a1 100644
+--- a/src/LeGO-LOAM/include/lego_loam/utility.h
++++ b/src/LeGO-LOAM/include/lego_loam/utility.h
+@@ -34,6 +34,7 @@
+ #include <iterator>
+ #include <sstream>
+ #include <string>
++#include <stdexcept>
+ #include <limits>
+ #include <iomanip>
+ #include <array>
+diff --git a/src/LeGO-LOAM/launch/run.launch.py b/src/LeGO-LOAM/launch/run.launch.py
+index edac4d0..088168f 100644
+--- a/src/LeGO-LOAM/launch/run.launch.py
++++ b/src/LeGO-LOAM/launch/run.launch.py
+@@ -1,11 +1,10 @@
+ import os
+ from ament_index_python.packages import get_package_share_directory
+ from launch import LaunchDescription
+-from launch.actions import SetEnvironmentVariable, DeclareLaunchArgument, IncludeLaunchDescription
+-from launch.launch_description_sources import PythonLaunchDescriptionSource
++from launch.actions import SetEnvironmentVariable, DeclareLaunchArgument
++from launch.conditions import IfCondition
+ from launch.substitutions import LaunchConfiguration
+ from launch_ros.actions import Node
+-from os.path import expanduser
+ 
+ 
+ def generate_launch_description():
+@@ -14,19 +13,24 @@ def generate_launch_description():
+   stdout_linebuf_envvar = SetEnvironmentVariable('RCUTILS_CONSOLE_STDOUT_LINE_BUFFERED', '1')
+   stdout_colorized_envvar = SetEnvironmentVariable('RCUTILS_COLORIZED_OUTPUT', '1')
+ 
+-  # Simulated time
+-  use_sim_time = LaunchConfiguration('use_sim_time', default='true')
+-
+   # Nodes Configurations
+   config_file = os.path.join(get_package_share_directory('lego_loam_sr'), 'config', 'loam_config.yaml')
+   rviz_config = os.path.join(get_package_share_directory('lego_loam_sr'), 'rviz', 'test.rviz')
+ 
++  points_topic = LaunchConfiguration('points_topic')
++  params_file = LaunchConfiguration('params_file')
++  use_sim_time = LaunchConfiguration('use_sim_time')
++  rviz = LaunchConfiguration('rviz')
++  publish_reference_tf = LaunchConfiguration('publish_reference_tf')
++
+   # Tf transformations
+   transform_map = Node(
+     package='tf2_ros',
+     executable='static_transform_publisher',
+     name='camera_init_to_map',
+     arguments=['0', '0', '0', '1.570795', '0', '1.570795', 'map', 'camera_init'],
++    parameters=[{'use_sim_time': use_sim_time}],
++    condition=IfCondition(publish_reference_tf),
+   )
+ 
+   transform_camera = Node(
+@@ -34,6 +38,8 @@ def generate_launch_description():
+     executable='static_transform_publisher',
+     name='base_link_to_camera',
+     arguments=['0', '0', '0', '-1.570795', '-1.570795', '0', 'camera', 'base_link'],
++    parameters=[{'use_sim_time': use_sim_time}],
++    condition=IfCondition(publish_reference_tf),
+   )
+ 
+   transform_velodyne = Node(
+@@ -41,6 +47,8 @@ def generate_launch_description():
+     executable='static_transform_publisher',
+     name='velodyne_to_base_link',
+     arguments=['0', '0', '0', '0', '0', '0','base_link','velodyne'],
++    parameters=[{'use_sim_time': use_sim_time}],
++    condition=IfCondition(publish_reference_tf),
+   )
+ 
+   # LeGO-LOAM
+@@ -48,8 +56,8 @@ def generate_launch_description():
+     package='lego_loam_sr',
+     executable='lego_loam_sr',
+     output='screen',
+-    parameters=[config_file],
+-    remappings=[('/lidar_points', '/velodyne_points')],
++    parameters=[params_file, {'use_sim_time': use_sim_time}],
++    remappings=[('/lidar_points', points_topic)],
+   )
+ 
+   # Rviz
+@@ -58,13 +66,30 @@ def generate_launch_description():
+     executable='rviz2',
+     name='rviz2',
+     arguments=['-d', rviz_config],
+-    output='screen'
++    parameters=[{'use_sim_time': use_sim_time}],
++    output='screen',
++    condition=IfCondition(rviz),
+   )
+ 
+   ld = LaunchDescription()
+   # Set environment variables
+   ld.add_action(stdout_linebuf_envvar)
+   ld.add_action(stdout_colorized_envvar)
++  ld.add_action(DeclareLaunchArgument(
++    'points_topic', default_value='/velodyne_points',
++    description='External PointCloud2 input topic'))
++  ld.add_action(DeclareLaunchArgument(
++    'params_file', default_value=config_file,
++    description='LeGO-LOAM parameter YAML file'))
++  ld.add_action(DeclareLaunchArgument(
++    'use_sim_time', default_value='true',
++    description='Use /clock from rosbag2 or a test publisher'))
++  ld.add_action(DeclareLaunchArgument(
++    'rviz', default_value='true',
++    description='Start RViz with the installed project configuration'))
++  ld.add_action(DeclareLaunchArgument(
++    'publish_reference_tf', default_value='true',
++    description='Publish reference-only map/camera/base/velodyne static transforms'))
+   # Add nodes
+   ld.add_action(lego_loam_node)
+   ld.add_action(transform_map)
+diff --git a/src/LeGO-LOAM/package.xml b/src/LeGO-LOAM/package.xml
+index f2122bc..9c06506 100644
+--- a/src/LeGO-LOAM/package.xml
++++ b/src/LeGO-LOAM/package.xml
+@@ -14,17 +14,28 @@
+   <license>BSD</license>
+ 
+   <buildtool_depend>ament_cmake</buildtool_depend>
+-  <build_depend>cloud_msgs</build_depend>
++  <depend>rclcpp</depend>
++  <depend>std_msgs</depend>
++  <depend>sensor_msgs</depend>
++  <depend>geometry_msgs</depend>
++  <depend>nav_msgs</depend>
++  <depend>tf2</depend>
++  <depend>tf2_ros</depend>
++  <depend>tf2_geometry_msgs</depend>
++  <depend>pcl_conversions</depend>
++  <depend>cloud_msgs</depend>
++  <depend>eigen3_cmake_module</depend>
++  <depend>eigen</depend>
++  <depend>gtsam</depend>
++  <depend>boost</depend>
++  <depend>libpcl-all-dev</depend>
+ 
+-  <exec_depend>rclcpp</exec_depend>
+-  <exec_depend>std_msgs</exec_depend>
+-  <exec_depend>sensor_msgs</exec_depend>
+-  <exec_depend>geometry_msgs</exec_depend>
+-  <exec_depend>nav_msgs</exec_depend>
+-  <exec_depend>tf2</exec_depend>
+-  <exec_depend>tf2_ros</exec_depend>
+-  <exec_depend>pcl_conversions</exec_depend>
+-  <exec_depend>cloud_msgs</exec_depend>
++  <exec_depend>launch</exec_depend>
++  <exec_depend>launch_ros</exec_depend>
++  <exec_depend>ament_index_python</exec_depend>
++  <exec_depend>rviz2</exec_depend>
++
++  <test_depend>ament_cmake_gtest</test_depend>
+ 
+   <export>
+     <build_type>ament_cmake</build_type>
+diff --git a/src/LeGO-LOAM/rviz/test.rviz b/src/LeGO-LOAM/rviz/test.rviz
+index 0b82ed0..e8ab5cc 100644
+--- a/src/LeGO-LOAM/rviz/test.rviz
++++ b/src/LeGO-LOAM/rviz/test.rviz
+@@ -77,7 +77,7 @@ Visualization Manager:
+         Durability Policy: Volatile
+         Filter size: 10
+         History Policy: Keep Last
+-        Reliability Policy: Reliable
++        Reliability Policy: Best Effort
+         Value: /velodyne_points
+       Use Fixed Frame: true
+       Use rainbow: true
+@@ -237,7 +237,7 @@ Visualization Manager:
+         Value: true
+       Enabled: false
+       Keep: 0
+-      Name: Odometry
++      Name: Integrated Odometry
+       Position Tolerance: 0.30000001192092896
+       Shape:
+         Alpha: 1
+@@ -255,8 +255,42 @@ Visualization Manager:
+         Filter size: 10
+         History Policy: Keep Last
+         Reliability Policy: Reliable
+-        Value: /aft_mapped_to_init
++        Value: /integrated_to_init
+       Value: false
++    - Alpha: 1
++      Autocompute Intensity Bounds: true
++      Autocompute Value Bounds:
++        Max Value: 10
++        Min Value: -10
++        Value: true
++      Axis: Z
++      Channel Name: intensity
++      Class: rviz_default_plugins/PointCloud2
++      Color: 80; 180; 255
++      Color Transformer: FlatColor
++      Decay Time: 0
++      Enabled: true
++      Invert Rainbow: false
++      Max Color: 255; 255; 255
++      Max Intensity: 16
++      Min Color: 0; 0; 0
++      Min Intensity: 0
++      Name: Segmented Cloud
++      Position Transformer: XYZ
++      Selectable: true
++      Size (Pixels): 2
++      Size (m): 0.009999999776482582
++      Style: Points
++      Topic:
++        Depth: 5
++        Durability Policy: Volatile
++        Filter size: 10
++        History Policy: Keep Last
++        Reliability Policy: Reliable
++        Value: /segmented_cloud
++      Use Fixed Frame: true
++      Use rainbow: true
++      Value: true
+     - Alpha: 1
+       Autocompute Intensity Bounds: true
+       Autocompute Value Bounds:
+@@ -291,6 +325,19 @@ Visualization Manager:
+       Use Fixed Frame: true
+       Use rainbow: true
+       Value: true
++    - Class: rviz_default_plugins/TF
++      Enabled: true
++      Frame Timeout: 15
++      Frames:
++        All Enabled: true
++      Marker Scale: 1
++      Name: TF
++      Show Arrows: true
++      Show Axes: true
++      Show Names: false
++      Tree: {}
++      Update Interval: 0
++      Value: true
+   Enabled: true
+   Global Options:
+     Background Color: 48; 48; 48
+diff --git a/src/LeGO-LOAM/src/featureAssociation.cpp b/src/LeGO-LOAM/src/featureAssociation.cpp
+index 2a6f436..d40f386 100644
+--- a/src/LeGO-LOAM/src/featureAssociation.cpp
++++ b/src/LeGO-LOAM/src/featureAssociation.cpp
+@@ -65,23 +65,13 @@ FeatureAssociation::FeatureAssociation(const std::string &name, Channel<Projecti
+   _cycle_count = 0;
+ 
+   // Declare parameters
+-#if defined(USE_GALACTIC_VERSION) || defined(USE_HUMBLE_VERSION) || defined(USE_IRON_VERSION)
+-  this->declare_parameter(PARAM_VERTICAL_SCANS,rclcpp::PARAMETER_INTEGER );
+-  this->declare_parameter(PARAM_HORIZONTAL_SCANS,rclcpp::PARAMETER_INTEGER );
+-  this->declare_parameter(PARAM_SCAN_PERIOD,rclcpp::PARAMETER_DOUBLE );
+-  this->declare_parameter(PARAM_FREQ_DIVIDER,rclcpp::PARAMETER_INTEGER );
+-  this->declare_parameter(PARAM_EDGE_THRESHOLD,rclcpp::PARAMETER_DOUBLE );
+-  this->declare_parameter(PARAM_SURF_THRESHOLD,rclcpp::PARAMETER_DOUBLE );
+-  this->declare_parameter(PARAM_DISTANCE,rclcpp::PARAMETER_DOUBLE );
+-#else
+-  this->declare_parameter(PARAM_VERTICAL_SCANS, 2);
+-  this->declare_parameter(PARAM_HORIZONTAL_SCANS, 2);
+-  this->declare_parameter(PARAM_SCAN_PERIOD, 3);
+-  this->declare_parameter(PARAM_FREQ_DIVIDER, 2);
+-  this->declare_parameter(PARAM_EDGE_THRESHOLD, 3);
+-  this->declare_parameter(PARAM_SURF_THRESHOLD, 3);
+-  this->declare_parameter(PARAM_DISTANCE, 3);
+-#endif
++  this->declare_parameter(PARAM_VERTICAL_SCANS, 16);
++  this->declare_parameter(PARAM_HORIZONTAL_SCANS, 1800);
++  this->declare_parameter(PARAM_SCAN_PERIOD, 0.1);
++  this->declare_parameter(PARAM_FREQ_DIVIDER, 5);
++  this->declare_parameter(PARAM_EDGE_THRESHOLD, 0.1);
++  this->declare_parameter(PARAM_SURF_THRESHOLD, 0.1);
++  this->declare_parameter(PARAM_DISTANCE, 5.0);
+ 
+   float nearest_dist;
+ 
+@@ -108,6 +98,21 @@ FeatureAssociation::FeatureAssociation(const std::string &name, Channel<Projecti
+     RCLCPP_WARN(this->get_logger(), "Parameter %s not found", PARAM_DISTANCE.c_str());
+   }
+ 
++  if (_vertical_scans < 2 || _horizontal_scans < 2) {
++    throw std::invalid_argument("laser scan dimensions must both be at least 2");
++  }
++  if (!std::isfinite(_scan_period) || _scan_period <= 0.0F) {
++    throw std::invalid_argument("laser.scan_period must be positive and finite");
++  }
++  if (_mapping_frequency_div < 1) {
++    throw std::invalid_argument("mapping.mapping_frequency_divider must be at least 1");
++  }
++  if (!std::isfinite(_edge_threshold) || _edge_threshold < 0.0F ||
++      !std::isfinite(_surf_threshold) || _surf_threshold < 0.0F ||
++      !std::isfinite(nearest_dist) || nearest_dist <= 0.0F) {
++    throw std::invalid_argument("feature thresholds and search distance are invalid");
++  }
++
+   _nearest_feature_dist_sqr = nearest_dist*nearest_dist;
+ 
+   initializationValue();
+@@ -289,9 +294,13 @@ void FeatureAssociation::extractFeatures() {
+                    6 -
+                1;
+ 
++      const int cloud_size = static_cast<int>(segmentedCloud->size());
++      sp = std::max(sp, 5);
++      ep = std::min(ep, cloud_size - 6);
++
+       if (sp >= ep) continue;
+ 
+-      std::sort(cloudSmoothness.begin() + sp, cloudSmoothness.begin() + ep,
++      std::sort(cloudSmoothness.begin() + sp, cloudSmoothness.begin() + ep + 1,
+                 by_value());
+ 
+       int largestPickedNum = 0;
+@@ -1322,6 +1331,19 @@ void FeatureAssociation::runFeatureAssociation() {
+ 
+     cloudHeader = segInfo.header;
+ 
++    if (!segmentedCloud || segmentedCloud->size() < 11 ||
++        segInfo.segmented_cloud_range.size() < segmentedCloud->size() ||
++        segInfo.segmented_cloud_col_ind.size() < segmentedCloud->size() ||
++        segInfo.segmented_cloud_ground_flag.size() < segmentedCloud->size() ||
++        segInfo.start_ring_index.size() != static_cast<size_t>(_vertical_scans) ||
++        segInfo.end_ring_index.size() != static_cast<size_t>(_vertical_scans) ||
++        !std::isfinite(segInfo.orientation_diff) ||
++        std::abs(segInfo.orientation_diff) <= 1e-6F) {
++      RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000,
++                           "Ignoring sparse or malformed projected scan");
++      continue;
++    }
++
+     /**  1. Feature Extraction  */
+     adjustDistortion();
+ 
+diff --git a/src/LeGO-LOAM/src/imageProjection.cpp b/src/LeGO-LOAM/src/imageProjection.cpp
+index ce02b00..acd1aee 100644
+--- a/src/LeGO-LOAM/src/imageProjection.cpp
++++ b/src/LeGO-LOAM/src/imageProjection.cpp
+@@ -43,7 +43,8 @@ ImageProjection::ImageProjection(const std::string &name, Channel<ProjectionOut>
+     : Node(name),  _output_channel(output_channel)
+ {
+   _sub_laser_cloud = this->create_subscription<sensor_msgs::msg::PointCloud2>(
+-      "/rslidar_points", 1, std::bind(&ImageProjection::cloudHandler, this, std::placeholders::_1));
++      "/lidar_points", rclcpp::SensorDataQoS(),
++      std::bind(&ImageProjection::cloudHandler, this, std::placeholders::_1));
+ 
+   _pub_full_cloud = this->create_publisher<sensor_msgs::msg::PointCloud2>("/full_cloud_projected", 1);
+   _pub_full_info_cloud = this->create_publisher<sensor_msgs::msg::PointCloud2>("/full_cloud_info", 1);
+@@ -53,17 +54,17 @@ ImageProjection::ImageProjection(const std::string &name, Channel<ProjectionOut>
+   _pub_segmented_cloud_info = this->create_publisher<cloud_msgs::msg::CloudInfo>("/segmented_cloud_info", 1);
+   _pub_outlier_cloud = this->create_publisher<sensor_msgs::msg::PointCloud2>("/outlier_cloud", 1);
+ 
+-  float vertical_angle_top;
++  float vertical_angle_top = 15.0F;
+   // Declare parameters
+-  this->declare_parameter(PARAM_VERTICAL_SCANS,_vertical_scans);
+-  this->declare_parameter(PARAM_HORIZONTAL_SCANS,_horizontal_scans);
+-  this->declare_parameter(PARAM_ANGLE_BOTTOM,_ang_bottom);
++  this->declare_parameter(PARAM_VERTICAL_SCANS, 16);
++  this->declare_parameter(PARAM_HORIZONTAL_SCANS, 1800);
++  this->declare_parameter(PARAM_ANGLE_BOTTOM, -15.0);
+   this->declare_parameter(PARAM_ANGLE_TOP,vertical_angle_top);
+-  this->declare_parameter(PARAM_GROUND_INDEX,_ground_scan_index);
+-  this->declare_parameter(PARAM_SENSOR_ANGLE,_sensor_mount_angle);
+-  this->declare_parameter(PARAM_SEGMENT_THETA,_segment_theta);
+-  this->declare_parameter(PARAM_SEGMENT_POINT,_segment_valid_point_num);
+-  this->declare_parameter(PARAM_SEGMENT_LINE,_segment_valid_line_num);
++  this->declare_parameter(PARAM_GROUND_INDEX, 7);
++  this->declare_parameter(PARAM_SENSOR_ANGLE, 0.0);
++  this->declare_parameter(PARAM_SEGMENT_THETA, 60.0);
++  this->declare_parameter(PARAM_SEGMENT_POINT, 5);
++  this->declare_parameter(PARAM_SEGMENT_LINE, 3);
+ 
+ 
+   // Read parameters
+@@ -95,9 +96,35 @@ ImageProjection::ImageProjection(const std::string &name, Channel<ProjectionOut>
+     RCLCPP_WARN(this->get_logger(), "Parameter %s not found", PARAM_SEGMENT_LINE.c_str());
+   }
+ 
++  if (_vertical_scans < 2) {
++    throw std::invalid_argument("laser.num_vertical_scans must be at least 2");
++  }
++  if (_horizontal_scans < 2) {
++    throw std::invalid_argument("laser.num_horizontal_scans must be at least 2");
++  }
++  if (!std::isfinite(_ang_bottom) || !std::isfinite(vertical_angle_top) ||
++      vertical_angle_top <= _ang_bottom) {
++    throw std::invalid_argument(
++        "laser.vertical_angle_top must be finite and greater than laser.vertical_angle_bottom");
++  }
++  if (_ground_scan_index < 0 || _ground_scan_index >= _vertical_scans - 1) {
++    throw std::invalid_argument(
++        "laser.ground_scan_index must be in [0, num_vertical_scans - 2]");
++  }
++  if (!std::isfinite(_sensor_mount_angle)) {
++    throw std::invalid_argument("laser.sensor_mount_angle must be finite");
++  }
++  if (!std::isfinite(_segment_theta) || _segment_theta <= 0.0F ||
++      _segment_theta >= 90.0F) {
++    throw std::invalid_argument("image_projection.segment_theta must be between 0 and 90 degrees");
++  }
++  if (_segment_valid_point_num < 1 || _segment_valid_line_num < 1 ||
++      _segment_valid_line_num > _vertical_scans) {
++    throw std::invalid_argument("image projection segment validity parameters are out of range");
++  }
++
+   _ang_resolution_X = (M_PI*2) / (_horizontal_scans);
+   _ang_resolution_Y = DEG_TO_RAD*(vertical_angle_top - _ang_bottom) / float(_vertical_scans-1);
+-  _ang_bottom = -( _ang_bottom - 0.1) * DEG_TO_RAD;
+   _segment_theta *= DEG_TO_RAD;
+   _sensor_mount_angle *= DEG_TO_RAD;
+ 
+@@ -123,6 +150,7 @@ void ImageProjection::resetParameters() {
+   nanPoint.x = std::numeric_limits<float>::quiet_NaN();
+   nanPoint.y = std::numeric_limits<float>::quiet_NaN();
+   nanPoint.z = std::numeric_limits<float>::quiet_NaN();
++  nanPoint.intensity = -1.0F;
+ 
+   _laser_cloud_in->clear();
+   _ground_cloud->clear();
+@@ -157,10 +185,54 @@ void ImageProjection::cloudHandler(
+   // Reset parameters
+   resetParameters();
+ 
+-  // Copy and remove NAN points
+-  pcl::fromROSMsg(*laserCloudMsg, *_laser_cloud_in);
++  const auto has_float_field = [laserCloudMsg](const std::string &name) {
++    return std::any_of(laserCloudMsg->fields.begin(), laserCloudMsg->fields.end(),
++                       [&name](const sensor_msgs::msg::PointField &field) {
++                         return field.name == name && field.count >= 1 &&
++                                field.datatype == sensor_msgs::msg::PointField::FLOAT32 &&
++                                field.offset + sizeof(float) <= laserCloudMsg->point_step;
++                       });
++  };
++  if (!has_float_field("x") || !has_float_field("y") ||
++      !has_float_field("z") || !has_float_field("intensity")) {
++    RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000,
++                         "Ignoring PointCloud2 without float XYZ and intensity fields");
++    return;
++  }
++  const uint64_t minimum_row_step =
++      static_cast<uint64_t>(laserCloudMsg->point_step) * laserCloudMsg->width;
++  const uint64_t minimum_data_size =
++      static_cast<uint64_t>(laserCloudMsg->row_step) * laserCloudMsg->height;
++  if (laserCloudMsg->width == 0 || laserCloudMsg->height == 0 ||
++      laserCloudMsg->point_step == 0 ||
++      laserCloudMsg->row_step < minimum_row_step ||
++      laserCloudMsg->data.size() < minimum_data_size) {
++    RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000,
++                         "Ignoring empty or structurally malformed PointCloud2 scan");
++    return;
++  }
++
++  // Copy and remove non-finite points.
++  try {
++    pcl::fromROSMsg(*laserCloudMsg, *_laser_cloud_in);
++  } catch (const std::exception &error) {
++    RCLCPP_WARN(get_logger(), "Ignoring malformed PointCloud2: %s", error.what());
++    return;
++  }
+   std::vector<int> indices;
+   pcl::removeNaNFromPointCloud(*_laser_cloud_in, *_laser_cloud_in, indices);
++  _laser_cloud_in->erase(
++      std::remove_if(_laser_cloud_in->begin(), _laser_cloud_in->end(),
++                     [](const PointType &point) {
++                       return !std::isfinite(point.x) || !std::isfinite(point.y) ||
++                              !std::isfinite(point.z);
++                     }),
++      _laser_cloud_in->end());
++  if (_laser_cloud_in->empty()) {
++    RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000,
++                         "Ignoring PointCloud2 with no finite XYZ points");
++    return;
++  }
+   _seg_msg.header = laserCloudMsg->header;
+ 
+   findStartEndAngle();
+@@ -186,11 +258,16 @@ void ImageProjection::projectPointCloud() {
+                        thisPoint.y * thisPoint.y +
+                        thisPoint.z * thisPoint.z);
+ 
++    if (!std::isfinite(range) || range < 0.1F) {
++      continue;
++    }
++
+     // find the row and column index in the image for this point
+-    float verticalAngle = std::asin(thisPoint.z / range);
+-        //std::atan2(thisPoint.z, sqrt(thisPoint.x * thisPoint.x + thisPoint.y * thisPoint.y));
++    float verticalAngle = lego_loam::verticalAngle(
++        thisPoint.x, thisPoint.y, thisPoint.z);
+ 
+-    int rowIdn = (verticalAngle + _ang_bottom) / _ang_resolution_Y;
++    int rowIdn = lego_loam::verticalRow(
++        verticalAngle, _ang_bottom, _ang_resolution_Y);
+     if (rowIdn < 0 || rowIdn >= _vertical_scans) {
+       continue;
+     }
+@@ -207,10 +284,6 @@ void ImageProjection::projectPointCloud() {
+       continue;
+     }
+ 
+-    if (range < 0.1){
+-      continue;
+-    }
+-
+     _range_mat(rowIdn, columnIdn) = range;
+ 
+     thisPoint.intensity = (float)rowIdn + (float)columnIdn / 10000.0;
+@@ -264,11 +337,7 @@ void ImageProjection::groundRemoval() {
+       float dZ =
+           _full_cloud->points[upperInd].z - _full_cloud->points[lowerInd].z;
+ 
+-      float vertical_angle = std::atan2(dZ , sqrt(dX * dX + dY * dY + dZ * dZ));
+-
+-      // TODO: review this change
+-
+-      if ( (vertical_angle - _sensor_mount_angle) <= 10 * DEG_TO_RAD) {
++      if (lego_loam::isGroundPair(dX, dY, dZ, _sensor_mount_angle)) {
+         _ground_mat(i, j) = 1;
+         _ground_mat(i + 1, j) = 1;
+       }
+@@ -304,7 +373,7 @@ void ImageProjection::cloudSegmentation() {
+   int sizeOfSegCloud = 0;
+   // extract segmented cloud for lidar odometry
+   for (int i = 0; i < _vertical_scans; ++i) {
+-    _seg_msg.start_ring_index[i] = sizeOfSegCloud - 1 + 5;
++    _seg_msg.start_ring_index[i] = sizeOfSegCloud + 4;
+ 
+     for (int j = 0; j < _horizontal_scans; ++j) {
+       if (_label_mat(i, j) > 0 || _ground_mat(i, j) == 1) {
+@@ -338,7 +407,7 @@ void ImageProjection::cloudSegmentation() {
+       }
+     }
+ 
+-    _seg_msg.end_ring_index[i] = sizeOfSegCloud - 1 - 5;
++    _seg_msg.end_ring_index[i] = sizeOfSegCloud - 6;
+   }
+ 
+   // extract segmented cloud for visualization
+@@ -444,7 +513,7 @@ void ImageProjection::publishClouds() {
+ 
+   sensor_msgs::msg::PointCloud2 temp;
+   temp.header.stamp = _seg_msg.header.stamp;
+-  temp.header.frame_id = "base_link";
++  temp.header.frame_id = _seg_msg.header.frame_id;
+ 
+   auto PublishCloud = [](rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub, sensor_msgs::msg::PointCloud2& temp,
+                           const pcl::PointCloud<PointType>::Ptr& cloud) {
+@@ -477,6 +546,13 @@ void ImageProjection::publishClouds() {
+   std::swap(out.outlier_cloud, _outlier_cloud);
+   std::swap(out.segmented_cloud, _segmented_cloud);
+ 
+-  _output_channel.send( std::move(out) );
++  if (out.segmented_cloud->size() >= 11 &&
++      std::isfinite(out.seg_msg.orientation_diff) &&
++      std::abs(out.seg_msg.orientation_diff) > 1e-6F) {
++    _output_channel.send(std::move(out));
++  } else {
++    RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000,
++                         "Scan produced too few usable segmented points");
++  }
+ 
+ }
+diff --git a/src/LeGO-LOAM/src/imageProjection.h b/src/LeGO-LOAM/src/imageProjection.h
+index c777a84..ff5b5c2 100644
+--- a/src/LeGO-LOAM/src/imageProjection.h
++++ b/src/LeGO-LOAM/src/imageProjection.h
+@@ -3,6 +3,7 @@
+ 
+ #include "lego_loam/utility.h"
+ #include "lego_loam/channel.h"
++#include "lego_loam/projection_math.h"
+ #include <Eigen/QR>
+ 
+ class ImageProjection : public rclcpp::Node {
+diff --git a/src/LeGO-LOAM/src/main.cpp b/src/LeGO-LOAM/src/main.cpp
+index 63bd706..569b9ad 100644
+--- a/src/LeGO-LOAM/src/main.cpp
++++ b/src/LeGO-LOAM/src/main.cpp
+@@ -5,7 +5,7 @@
+ #include "transformFusion.h"
+ 
+ int main(int argc, char** argv) {
+-  Channel<ProjectionOut> projection_out_channel(true);
++  Channel<ProjectionOut> projection_out_channel(false);
+   Channel<AssociationOut> association_out_channel(false);
+ 
+   rclcpp::init(argc, argv);
+diff --git a/src/LeGO-LOAM/src/mapOptmization.cpp b/src/LeGO-LOAM/src/mapOptmization.cpp
+index 3d05e71..6fc364d 100644
+--- a/src/LeGO-LOAM/src/mapOptmization.cpp
++++ b/src/LeGO-LOAM/src/mapOptmization.cpp
+@@ -84,13 +84,13 @@ MapOptimization::MapOptimization(const std::string &name, Channel<AssociationOut
+   aftMappedTrans.child_frame_id = "aft_mapped";
+ 
+   // Declare parameters
+-  this->declare_parameter(PARAM_ENABLE_LOOP,_loop_closure_enabled);
+-  this->declare_parameter(PARAM_SEARCH_RADIUS,_surrounding_keyframe_search_radius);
+-  this->declare_parameter(PARAM_SEARCH_NUM,_surrounding_keyframe_search_num);
+-  this->declare_parameter(PARAM_HISTORY_SEARCH_RADIUS,_history_keyframe_search_radius);
+-  this->declare_parameter(PARAM_HISTORY_SEARCH_NUM,_history_keyframe_search_num);
+-  this->declare_parameter(PARAM_HISTORY_SCORE,_history_keyframe_fitness_score);
+-  this->declare_parameter(PARAM_GLOBAL_SEARCH_RADIUS,_global_map_visualization_search_radius);
++  this->declare_parameter(PARAM_ENABLE_LOOP, true);
++  this->declare_parameter(PARAM_SEARCH_RADIUS, 50.0);
++  this->declare_parameter(PARAM_SEARCH_NUM, 50);
++  this->declare_parameter(PARAM_HISTORY_SEARCH_RADIUS, 7.0);
++  this->declare_parameter(PARAM_HISTORY_SEARCH_NUM, 25);
++  this->declare_parameter(PARAM_HISTORY_SCORE, 0.3);
++  this->declare_parameter(PARAM_GLOBAL_SEARCH_RADIUS, 500.0);
+ 
+   // Read parameters
+   if (!this->get_parameter(PARAM_ENABLE_LOOP, _loop_closure_enabled)) {
+@@ -114,6 +114,18 @@ MapOptimization::MapOptimization(const std::string &name, Channel<AssociationOut
+   if (!this->get_parameter(PARAM_GLOBAL_SEARCH_RADIUS, _global_map_visualization_search_radius)) {
+     RCLCPP_WARN(this->get_logger(), "Parameter %s not found", PARAM_GLOBAL_SEARCH_RADIUS.c_str());
+   }
++  if (!std::isfinite(_surrounding_keyframe_search_radius) ||
++      _surrounding_keyframe_search_radius <= 0.0F ||
++      _surrounding_keyframe_search_num < 1 ||
++      !std::isfinite(_history_keyframe_search_radius) ||
++      _history_keyframe_search_radius <= 0.0F ||
++      _history_keyframe_search_num < 1 ||
++      !std::isfinite(_history_keyframe_fitness_score) ||
++      _history_keyframe_fitness_score <= 0.0F ||
++      !std::isfinite(_global_map_visualization_search_radius) ||
++      _global_map_visualization_search_radius <= 0.0F) {
++    throw std::invalid_argument("mapping parameters must be positive and finite");
++  }
+ 
+   allocateMemory();
+ 
+diff --git a/src/LeGO-LOAM/test/test_projection_math.cpp b/src/LeGO-LOAM/test/test_projection_math.cpp
+new file mode 100644
+index 0000000..d658b4d
+--- /dev/null
++++ b/src/LeGO-LOAM/test/test_projection_math.cpp
+@@ -0,0 +1,33 @@
++#include <gtest/gtest.h>
++
++#include "lego_loam/projection_math.h"
++
++TEST(ProjectionMath, MapsVlp16AnglesToExpectedRows) {
++  constexpr float resolution = 2.0F * lego_loam::kDegreesToRadians;
++  EXPECT_EQ(lego_loam::verticalRow(-15.0F * lego_loam::kDegreesToRadians,
++                                   -15.0F, resolution),
++            0);
++  EXPECT_EQ(lego_loam::verticalRow(15.0F * lego_loam::kDegreesToRadians,
++                                   -15.0F, resolution),
++            15);
++}
++
++TEST(ProjectionMath, AcceptsPositiveAndNegativeGroundSlopesWithinThreshold) {
++  EXPECT_TRUE(lego_loam::isGroundPair(1.0F, 0.0F, 0.1F, 0.0F));
++  EXPECT_TRUE(lego_loam::isGroundPair(1.0F, 0.0F, -0.1F, 0.0F));
++}
++
++TEST(ProjectionMath, RejectsPositiveAndNegativeSlopesBeyondThreshold) {
++  EXPECT_FALSE(lego_loam::isGroundPair(1.0F, 0.0F, 0.25F, 0.0F));
++  EXPECT_FALSE(lego_loam::isGroundPair(1.0F, 0.0F, -0.25F, 0.0F));
++}
++
++TEST(ProjectionMath, AppliesMountingAngleSymmetrically) {
++  constexpr float mount = 5.0F * lego_loam::kDegreesToRadians;
++  EXPECT_TRUE(lego_loam::isGroundPair(1.0F, 0.0F,
++                                      std::tan(14.9F * lego_loam::kDegreesToRadians),
++                                      mount));
++  EXPECT_FALSE(lego_loam::isGroundPair(1.0F, 0.0F,
++                                       std::tan(-5.1F * lego_loam::kDegreesToRadians),
++                                       mount));
++}
+diff --git a/src/cloud_msgs/package.xml b/src/cloud_msgs/package.xml
+index 3a72ab6..817dce0 100644
+--- a/src/cloud_msgs/package.xml
++++ b/src/cloud_msgs/package.xml
+@@ -14,9 +14,7 @@
+ 
+   <buildtool_depend>ament_cmake</buildtool_depend>
+   <build_depend>rosidl_default_generators</build_depend>
+-
+-  <exec_depend>rclcpp</exec_depend>
+-  <exec_depend>std_msgs</exec_depend>
++  <depend>std_msgs</depend>
+   <exec_depend>rosidl_default_runtime</exec_depend>
+ 
+   <member_of_group>rosidl_interface_packages</member_of_group>
+-- 
+2.34.1
+

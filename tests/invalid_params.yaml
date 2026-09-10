@@ -1,0 +1,5 @@
+image_projection:
+  ros__parameters:
+    laser:
+      num_vertical_scans: 1
+
