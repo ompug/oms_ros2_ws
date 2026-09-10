@@ -39,15 +39,14 @@ outside this baseline and must not be added by remapping alone.
 
 ## Migration procedure
 
-1. Transfer tracked files only; exclude generated overlays, logs, caches,
-   virtual environments, and datasets unless the bag is needed for a robot-side
-   performance test.
-2. Run the dependency installer only if the robot is verified as Jammy amd64;
-   otherwise adapt package installation deliberately and record the platform.
+1. Clone `https://github.com/ompug/oms_ros2_ws.git` and run
+   `./robot_setup.sh --preflight` to capture the initial platform report.
+2. Run `./robot_setup.sh --install` only if the robot is verified as Ubuntu
+   Jammy on amd64 or arm64. Use `--build` if dependencies are already present.
+   Other platforms require a deliberate dependency adaptation first.
 3. Build natively on the robot with `CMAKE_BUILD_PARALLEL_LEVEL=1` initially.
 4. Run `test.sh` disconnected from the motor controller and with localhost ROS
    discovery.
 5. Inspect the real LiDAR message and TF graph before changing configuration.
 6. Launch with `publish_reference_tf:=false`, measured extrinsics, and the
    verified LiDAR topic. Do not publish velocity commands from this workspace.
-

@@ -9,9 +9,11 @@ CACHE_DIR="${ROOT}/cache"
 ROS_HOME_DIR="${ROOT}/.ros"
 mkdir -p "${LOG_DIR}/apt" "${DOWNLOAD_DIR}" "${CACHE_DIR}/pip" "${ROS_HOME_DIR}"
 
-if [[ "$(. /etc/os-release && printf '%s' "${VERSION_CODENAME:-}")" != "jammy" ]] ||
-   [[ "$(dpkg --print-architecture)" != "amd64" ]]; then
-  echo "This installer supports Ubuntu Jammy amd64 only." >&2
+OS_CODENAME="$(. /etc/os-release && printf '%s' "${VERSION_CODENAME:-}")"
+HOST_ARCH="$(dpkg --print-architecture)"
+if [[ "${OS_CODENAME}" != "jammy" ]] ||
+   [[ "${HOST_ARCH}" != "amd64" && "${HOST_ARCH}" != "arm64" ]]; then
+  echo "This installer supports Ubuntu Jammy on amd64 or arm64; found ${OS_CODENAME:-unknown} ${HOST_ARCH}." >&2
   exit 1
 fi
 

@@ -31,6 +31,7 @@ establish trajectory accuracy or recorded-data SLAM quality.
 | Pinned upstream import | passed | local commits and `docs/SOURCE_LOCK.md` |
 | Shell/Python/XML static syntax | passed | Local syntax checks |
 | ROS installation and package build | passed | `logs/build-20260910T201931Z.log` |
+| Rosdep dependency resolution | passed | `logs/rosdep-update-final-20260910.log` and `logs/rosdep-install-final-20260910.log` |
 | Clean rebuild | passed | Final warning-free build: `logs/build-20260910T203151Z.log` |
 | Automated synthetic runtime suite | passed | Initial `logs/test-20260910T201952Z/result.json`; final post-clean-build `logs/test-20260910T203243Z/result.json` |
 | Recorded Jackal segment, run 1 | blocked | Official Google Drive quota; see `docs/DATASET.md` |

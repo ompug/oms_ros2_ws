@@ -8,9 +8,10 @@ Robot deployment, SSH, motor commands, and robot-specific tuning are excluded.
 
 **Current status (2026-09-10):** the desktop implementation is built and its
 unit, launch, QoS, shutdown, synthetic runtime, TF, and RViz initialization
-checks pass. System-wide rosdep initialization awaits one privileged command.
+checks pass. Rosdep is initialized and every declared dependency resolves.
 Recorded-data testing is blocked by the official Google Drive download quota.
-Robot deployment remains outside this desktop phase.
+Robot deployment remains outside this desktop phase; a portable preflight and
+native bootstrap script is ready for migration.
 
 ## 2. Current machine assessment
 
@@ -144,8 +145,8 @@ Follow the [official Humble Ubuntu installation instructions](https://github.com
 - [x] Resolve the documented systemd/udev prerequisite without accepting removal of desktop or core system packages.
 - [x] Install `ros-humble-desktop`, required compiler/build tools, Git, colcon, rosdep and Python venv support.
 - [x] Import pinned upstream and repair manifests.
-- [ ] Initialize rosdep only if necessary; keep its user cache beneath the project.
-- [ ] Run:
+- [x] Initialize rosdep only if necessary; keep its user cache beneath the project.
+- [x] Run:
 
 ```bash
 rosdep install --from-paths src --ignore-src --rosdistro humble -r -y
@@ -327,7 +328,7 @@ Add dataset fetch/conversion helpers and a source/dependency lock record.
 - [x] Establish documentation and Git baseline.
 - [x] Install and verify ROS/toolchain.
 - [x] Import upstream and apply traceable fixes.
-- [ ] Resolve dependencies and build. **Build passed; rosdep initialization remains.**
+- [x] Resolve dependencies and build.
 - [x] Verify launch, parameters, QoS and shutdown.
 - [x] Run regression and synthetic tests.
 - [ ] Acquire, convert and replay recorded data.

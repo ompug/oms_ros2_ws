@@ -41,9 +41,10 @@ The newly installed package comparison is
 `logs/inventory-installed-20260910T202635Z.tsv` (SHA-256
 `09249e63dd4751a6057be6435974b913274f2918633683d658306689583b649a`).
 
-ROS and the native dependencies are installed and tested. System-wide rosdep
-initialization still requires the one privileged `sudo rosdep init` command;
-the project keeps subsequent rosdep cache data beneath `.ros/`.
+ROS and the native dependencies are installed and tested. Rosdep was
+initialized system-wide, and the Humble index was populated beneath the
+project-local `.ros/` cache. `rosdep install` reports that all required rosdeps
+are installed.
 
 RViz created an OpenGL render window and subscribed to the configured point
 cloud topics under the Wayland session. Desktop screenshot capture could not be

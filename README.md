@@ -8,7 +8,9 @@ this project connects to a robot or publishes motor commands.
 
 ## Local setup
 
-Ubuntu 22.04 amd64 is the supported host.
+Ubuntu 22.04 on amd64 or arm64 is supported by the setup scripts. The completed
+desktop validation in this repository was performed on amd64; the target robot
+must build and run the suite natively before real LiDAR use.
 
 ```bash
 ./install_dependencies.sh
@@ -63,7 +65,31 @@ its quota is exceeded. The exact file IDs and current blocker are recorded in
 Start LeGO-LOAM and its subscribers before playback. Restart both launch and
 playback for a second run instead of looping timestamps backward.
 
-## Robot migration
+## Robot quick start
+
+On the robot, clone the public repository and record its platform before
+installing anything:
+
+```bash
+git clone https://github.com/ompug/oms_ros2_ws.git
+cd oms_ros2_ws
+./robot_setup.sh --preflight
+```
+
+After reviewing `docs/SCOUT_MINI_PORTING.md`, use `--install` for a fresh
+Ubuntu 22.04 amd64/arm64 host, or `--build` when its dependencies are already
+installed:
+
+```bash
+./robot_setup.sh --install
+```
+
+The bootstrap builds natively and runs the synthetic suite with localhost-only
+ROS discovery. It does not publish velocity commands. Real LiDAR launch must
+wait until the topic, PointCloud2 layout, timestamps, frames, and measured
+extrinsics have been recorded in the porting checklist.
+
+## Robot migration details
 
 Copy the tracked source, configuration, scripts, and documentation. Exclude
 `build/`, `install/`, `log/`, `logs/`, `.venv/`, caches, and downloaded bags.

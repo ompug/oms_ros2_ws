@@ -1,0 +1,1 @@
+This marker lets clean_build.sh verify the workspace root before deleting generated directories.
