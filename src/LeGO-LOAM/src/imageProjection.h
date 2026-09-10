@@ -3,6 +3,7 @@
 
 #include "lego_loam/utility.h"
 #include "lego_loam/channel.h"
+#include "lego_loam/projection_math.h"
 #include <Eigen/QR>
 
 class ImageProjection : public rclcpp::Node {

@@ -67,6 +67,12 @@ add_executable(${PROJECT_NAME} src/imageProjection.cpp src/featureAssociation.cp
 target_link_libraries(${PROJECT_NAME} ${PCL_LIBRARIES} gtsam)
 ament_target_dependencies(${PROJECT_NAME} ${dependencies} Eigen3)
 
+if(BUILD_TESTING)
+  find_package(ament_cmake_gtest REQUIRED)
+  ament_add_gtest(test_projection_math test/test_projection_math.cpp)
+  target_include_directories(test_projection_math PRIVATE include)
+endif()
+
 install(TARGETS
   ${PROJECT_NAME}
   DESTINATION lib/${PROJECT_NAME}

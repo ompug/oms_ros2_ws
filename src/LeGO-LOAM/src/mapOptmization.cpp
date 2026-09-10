@@ -84,13 +84,13 @@ MapOptimization::MapOptimization(const std::string &name, Channel<AssociationOut
   aftMappedTrans.child_frame_id = "aft_mapped";
 
   // Declare parameters
-  this->declare_parameter(PARAM_ENABLE_LOOP,_loop_closure_enabled);
-  this->declare_parameter(PARAM_SEARCH_RADIUS,_surrounding_keyframe_search_radius);
-  this->declare_parameter(PARAM_SEARCH_NUM,_surrounding_keyframe_search_num);
-  this->declare_parameter(PARAM_HISTORY_SEARCH_RADIUS,_history_keyframe_search_radius);
-  this->declare_parameter(PARAM_HISTORY_SEARCH_NUM,_history_keyframe_search_num);
-  this->declare_parameter(PARAM_HISTORY_SCORE,_history_keyframe_fitness_score);
-  this->declare_parameter(PARAM_GLOBAL_SEARCH_RADIUS,_global_map_visualization_search_radius);
+  this->declare_parameter(PARAM_ENABLE_LOOP, true);
+  this->declare_parameter(PARAM_SEARCH_RADIUS, 50.0);
+  this->declare_parameter(PARAM_SEARCH_NUM, 50);
+  this->declare_parameter(PARAM_HISTORY_SEARCH_RADIUS, 7.0);
+  this->declare_parameter(PARAM_HISTORY_SEARCH_NUM, 25);
+  this->declare_parameter(PARAM_HISTORY_SCORE, 0.3);
+  this->declare_parameter(PARAM_GLOBAL_SEARCH_RADIUS, 500.0);
 
   // Read parameters
   if (!this->get_parameter(PARAM_ENABLE_LOOP, _loop_closure_enabled)) {
@@ -113,6 +113,18 @@ MapOptimization::MapOptimization(const std::string &name, Channel<AssociationOut
   }
   if (!this->get_parameter(PARAM_GLOBAL_SEARCH_RADIUS, _global_map_visualization_search_radius)) {
     RCLCPP_WARN(this->get_logger(), "Parameter %s not found", PARAM_GLOBAL_SEARCH_RADIUS.c_str());
+  }
+  if (!std::isfinite(_surrounding_keyframe_search_radius) ||
+      _surrounding_keyframe_search_radius <= 0.0F ||
+      _surrounding_keyframe_search_num < 1 ||
+      !std::isfinite(_history_keyframe_search_radius) ||
+      _history_keyframe_search_radius <= 0.0F ||
+      _history_keyframe_search_num < 1 ||
+      !std::isfinite(_history_keyframe_fitness_score) ||
+      _history_keyframe_fitness_score <= 0.0F ||
+      !std::isfinite(_global_map_visualization_search_radius) ||
+      _global_map_visualization_search_radius <= 0.0F) {
+    throw std::invalid_argument("mapping parameters must be positive and finite");
   }
 
   allocateMemory();

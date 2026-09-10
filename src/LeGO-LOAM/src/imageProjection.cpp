@@ -43,7 +43,8 @@ ImageProjection::ImageProjection(const std::string &name, Channel<ProjectionOut>
     : Node(name),  _output_channel(output_channel)
 {
   _sub_laser_cloud = this->create_subscription<sensor_msgs::msg::PointCloud2>(
-      "/rslidar_points", 1, std::bind(&ImageProjection::cloudHandler, this, std::placeholders::_1));
+      "/lidar_points", rclcpp::SensorDataQoS(),
+      std::bind(&ImageProjection::cloudHandler, this, std::placeholders::_1));
 
   _pub_full_cloud = this->create_publisher<sensor_msgs::msg::PointCloud2>("/full_cloud_projected", 1);
   _pub_full_info_cloud = this->create_publisher<sensor_msgs::msg::PointCloud2>("/full_cloud_info", 1);
@@ -53,17 +54,17 @@ ImageProjection::ImageProjection(const std::string &name, Channel<ProjectionOut>
   _pub_segmented_cloud_info = this->create_publisher<cloud_msgs::msg::CloudInfo>("/segmented_cloud_info", 1);
   _pub_outlier_cloud = this->create_publisher<sensor_msgs::msg::PointCloud2>("/outlier_cloud", 1);
 
-  float vertical_angle_top;
+  float vertical_angle_top = 15.0F;
   // Declare parameters
-  this->declare_parameter(PARAM_VERTICAL_SCANS,_vertical_scans);
-  this->declare_parameter(PARAM_HORIZONTAL_SCANS,_horizontal_scans);
-  this->declare_parameter(PARAM_ANGLE_BOTTOM,_ang_bottom);
+  this->declare_parameter(PARAM_VERTICAL_SCANS, 16);
+  this->declare_parameter(PARAM_HORIZONTAL_SCANS, 1800);
+  this->declare_parameter(PARAM_ANGLE_BOTTOM, -15.0);
   this->declare_parameter(PARAM_ANGLE_TOP,vertical_angle_top);
-  this->declare_parameter(PARAM_GROUND_INDEX,_ground_scan_index);
-  this->declare_parameter(PARAM_SENSOR_ANGLE,_sensor_mount_angle);
-  this->declare_parameter(PARAM_SEGMENT_THETA,_segment_theta);
-  this->declare_parameter(PARAM_SEGMENT_POINT,_segment_valid_point_num);
-  this->declare_parameter(PARAM_SEGMENT_LINE,_segment_valid_line_num);
+  this->declare_parameter(PARAM_GROUND_INDEX, 7);
+  this->declare_parameter(PARAM_SENSOR_ANGLE, 0.0);
+  this->declare_parameter(PARAM_SEGMENT_THETA, 60.0);
+  this->declare_parameter(PARAM_SEGMENT_POINT, 5);
+  this->declare_parameter(PARAM_SEGMENT_LINE, 3);
 
 
   // Read parameters
@@ -95,9 +96,35 @@ ImageProjection::ImageProjection(const std::string &name, Channel<ProjectionOut>
     RCLCPP_WARN(this->get_logger(), "Parameter %s not found", PARAM_SEGMENT_LINE.c_str());
   }
 
+  if (_vertical_scans < 2) {
+    throw std::invalid_argument("laser.num_vertical_scans must be at least 2");
+  }
+  if (_horizontal_scans < 2) {
+    throw std::invalid_argument("laser.num_horizontal_scans must be at least 2");
+  }
+  if (!std::isfinite(_ang_bottom) || !std::isfinite(vertical_angle_top) ||
+      vertical_angle_top <= _ang_bottom) {
+    throw std::invalid_argument(
+        "laser.vertical_angle_top must be finite and greater than laser.vertical_angle_bottom");
+  }
+  if (_ground_scan_index < 0 || _ground_scan_index >= _vertical_scans - 1) {
+    throw std::invalid_argument(
+        "laser.ground_scan_index must be in [0, num_vertical_scans - 2]");
+  }
+  if (!std::isfinite(_sensor_mount_angle)) {
+    throw std::invalid_argument("laser.sensor_mount_angle must be finite");
+  }
+  if (!std::isfinite(_segment_theta) || _segment_theta <= 0.0F ||
+      _segment_theta >= 90.0F) {
+    throw std::invalid_argument("image_projection.segment_theta must be between 0 and 90 degrees");
+  }
+  if (_segment_valid_point_num < 1 || _segment_valid_line_num < 1 ||
+      _segment_valid_line_num > _vertical_scans) {
+    throw std::invalid_argument("image projection segment validity parameters are out of range");
+  }
+
   _ang_resolution_X = (M_PI*2) / (_horizontal_scans);
   _ang_resolution_Y = DEG_TO_RAD*(vertical_angle_top - _ang_bottom) / float(_vertical_scans-1);
-  _ang_bottom = -( _ang_bottom - 0.1) * DEG_TO_RAD;
   _segment_theta *= DEG_TO_RAD;
   _sensor_mount_angle *= DEG_TO_RAD;
 
@@ -123,6 +150,7 @@ void ImageProjection::resetParameters() {
   nanPoint.x = std::numeric_limits<float>::quiet_NaN();
   nanPoint.y = std::numeric_limits<float>::quiet_NaN();
   nanPoint.z = std::numeric_limits<float>::quiet_NaN();
+  nanPoint.intensity = -1.0F;
 
   _laser_cloud_in->clear();
   _ground_cloud->clear();
@@ -157,10 +185,54 @@ void ImageProjection::cloudHandler(
   // Reset parameters
   resetParameters();
 
-  // Copy and remove NAN points
-  pcl::fromROSMsg(*laserCloudMsg, *_laser_cloud_in);
+  const auto has_float_field = [laserCloudMsg](const std::string &name) {
+    return std::any_of(laserCloudMsg->fields.begin(), laserCloudMsg->fields.end(),
+                       [&name](const sensor_msgs::msg::PointField &field) {
+                         return field.name == name && field.count >= 1 &&
+                                field.datatype == sensor_msgs::msg::PointField::FLOAT32 &&
+                                field.offset + sizeof(float) <= laserCloudMsg->point_step;
+                       });
+  };
+  if (!has_float_field("x") || !has_float_field("y") ||
+      !has_float_field("z") || !has_float_field("intensity")) {
+    RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000,
+                         "Ignoring PointCloud2 without float XYZ and intensity fields");
+    return;
+  }
+  const uint64_t minimum_row_step =
+      static_cast<uint64_t>(laserCloudMsg->point_step) * laserCloudMsg->width;
+  const uint64_t minimum_data_size =
+      static_cast<uint64_t>(laserCloudMsg->row_step) * laserCloudMsg->height;
+  if (laserCloudMsg->width == 0 || laserCloudMsg->height == 0 ||
+      laserCloudMsg->point_step == 0 ||
+      laserCloudMsg->row_step < minimum_row_step ||
+      laserCloudMsg->data.size() < minimum_data_size) {
+    RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000,
+                         "Ignoring empty or structurally malformed PointCloud2 scan");
+    return;
+  }
+
+  // Copy and remove non-finite points.
+  try {
+    pcl::fromROSMsg(*laserCloudMsg, *_laser_cloud_in);
+  } catch (const std::exception &error) {
+    RCLCPP_WARN(get_logger(), "Ignoring malformed PointCloud2: %s", error.what());
+    return;
+  }
   std::vector<int> indices;
   pcl::removeNaNFromPointCloud(*_laser_cloud_in, *_laser_cloud_in, indices);
+  _laser_cloud_in->erase(
+      std::remove_if(_laser_cloud_in->begin(), _laser_cloud_in->end(),
+                     [](const PointType &point) {
+                       return !std::isfinite(point.x) || !std::isfinite(point.y) ||
+                              !std::isfinite(point.z);
+                     }),
+      _laser_cloud_in->end());
+  if (_laser_cloud_in->empty()) {
+    RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000,
+                         "Ignoring PointCloud2 with no finite XYZ points");
+    return;
+  }
   _seg_msg.header = laserCloudMsg->header;
 
   findStartEndAngle();
@@ -186,11 +258,16 @@ void ImageProjection::projectPointCloud() {
                        thisPoint.y * thisPoint.y +
                        thisPoint.z * thisPoint.z);
 
-    // find the row and column index in the image for this point
-    float verticalAngle = std::asin(thisPoint.z / range);
-        //std::atan2(thisPoint.z, sqrt(thisPoint.x * thisPoint.x + thisPoint.y * thisPoint.y));
+    if (!std::isfinite(range) || range < 0.1F) {
+      continue;
+    }
 
-    int rowIdn = (verticalAngle + _ang_bottom) / _ang_resolution_Y;
+    // find the row and column index in the image for this point
+    float verticalAngle = lego_loam::verticalAngle(
+        thisPoint.x, thisPoint.y, thisPoint.z);
+
+    int rowIdn = lego_loam::verticalRow(
+        verticalAngle, _ang_bottom, _ang_resolution_Y);
     if (rowIdn < 0 || rowIdn >= _vertical_scans) {
       continue;
     }
@@ -204,10 +281,6 @@ void ImageProjection::projectPointCloud() {
     }
 
     if (columnIdn < 0 || columnIdn >= _horizontal_scans){
-      continue;
-    }
-
-    if (range < 0.1){
       continue;
     }
 
@@ -264,11 +337,7 @@ void ImageProjection::groundRemoval() {
       float dZ =
           _full_cloud->points[upperInd].z - _full_cloud->points[lowerInd].z;
 
-      float vertical_angle = std::atan2(dZ , sqrt(dX * dX + dY * dY + dZ * dZ));
-
-      // TODO: review this change
-
-      if ( (vertical_angle - _sensor_mount_angle) <= 10 * DEG_TO_RAD) {
+      if (lego_loam::isGroundPair(dX, dY, dZ, _sensor_mount_angle)) {
         _ground_mat(i, j) = 1;
         _ground_mat(i + 1, j) = 1;
       }
@@ -304,7 +373,7 @@ void ImageProjection::cloudSegmentation() {
   int sizeOfSegCloud = 0;
   // extract segmented cloud for lidar odometry
   for (int i = 0; i < _vertical_scans; ++i) {
-    _seg_msg.start_ring_index[i] = sizeOfSegCloud - 1 + 5;
+    _seg_msg.start_ring_index[i] = sizeOfSegCloud + 4;
 
     for (int j = 0; j < _horizontal_scans; ++j) {
       if (_label_mat(i, j) > 0 || _ground_mat(i, j) == 1) {
@@ -338,7 +407,7 @@ void ImageProjection::cloudSegmentation() {
       }
     }
 
-    _seg_msg.end_ring_index[i] = sizeOfSegCloud - 1 - 5;
+    _seg_msg.end_ring_index[i] = sizeOfSegCloud - 6;
   }
 
   // extract segmented cloud for visualization
@@ -444,7 +513,7 @@ void ImageProjection::publishClouds() {
 
   sensor_msgs::msg::PointCloud2 temp;
   temp.header.stamp = _seg_msg.header.stamp;
-  temp.header.frame_id = "base_link";
+  temp.header.frame_id = _seg_msg.header.frame_id;
 
   auto PublishCloud = [](rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pub, sensor_msgs::msg::PointCloud2& temp,
                           const pcl::PointCloud<PointType>::Ptr& cloud) {
@@ -477,6 +546,13 @@ void ImageProjection::publishClouds() {
   std::swap(out.outlier_cloud, _outlier_cloud);
   std::swap(out.segmented_cloud, _segmented_cloud);
 
-  _output_channel.send( std::move(out) );
+  if (out.segmented_cloud->size() >= 11 &&
+      std::isfinite(out.seg_msg.orientation_diff) &&
+      std::abs(out.seg_msg.orientation_diff) > 1e-6F) {
+    _output_channel.send(std::move(out));
+  } else {
+    RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000,
+                         "Scan produced too few usable segmented points");
+  }
 
 }

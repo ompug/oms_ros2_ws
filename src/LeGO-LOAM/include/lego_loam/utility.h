@@ -34,6 +34,7 @@
 #include <iterator>
 #include <sstream>
 #include <string>
+#include <stdexcept>
 #include <limits>
 #include <iomanip>
 #include <array>

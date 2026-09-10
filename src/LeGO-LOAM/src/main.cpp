@@ -5,7 +5,7 @@
 #include "transformFusion.h"
 
 int main(int argc, char** argv) {
-  Channel<ProjectionOut> projection_out_channel(true);
+  Channel<ProjectionOut> projection_out_channel(false);
   Channel<AssociationOut> association_out_channel(false);
 
   rclcpp::init(argc, argv);

@@ -65,23 +65,13 @@ FeatureAssociation::FeatureAssociation(const std::string &name, Channel<Projecti
   _cycle_count = 0;
 
   // Declare parameters
-#if defined(USE_GALACTIC_VERSION) || defined(USE_HUMBLE_VERSION) || defined(USE_IRON_VERSION)
-  this->declare_parameter(PARAM_VERTICAL_SCANS,rclcpp::PARAMETER_INTEGER );
-  this->declare_parameter(PARAM_HORIZONTAL_SCANS,rclcpp::PARAMETER_INTEGER );
-  this->declare_parameter(PARAM_SCAN_PERIOD,rclcpp::PARAMETER_DOUBLE );
-  this->declare_parameter(PARAM_FREQ_DIVIDER,rclcpp::PARAMETER_INTEGER );
-  this->declare_parameter(PARAM_EDGE_THRESHOLD,rclcpp::PARAMETER_DOUBLE );
-  this->declare_parameter(PARAM_SURF_THRESHOLD,rclcpp::PARAMETER_DOUBLE );
-  this->declare_parameter(PARAM_DISTANCE,rclcpp::PARAMETER_DOUBLE );
-#else
-  this->declare_parameter(PARAM_VERTICAL_SCANS, 2);
-  this->declare_parameter(PARAM_HORIZONTAL_SCANS, 2);
-  this->declare_parameter(PARAM_SCAN_PERIOD, 3);
-  this->declare_parameter(PARAM_FREQ_DIVIDER, 2);
-  this->declare_parameter(PARAM_EDGE_THRESHOLD, 3);
-  this->declare_parameter(PARAM_SURF_THRESHOLD, 3);
-  this->declare_parameter(PARAM_DISTANCE, 3);
-#endif
+  this->declare_parameter(PARAM_VERTICAL_SCANS, 16);
+  this->declare_parameter(PARAM_HORIZONTAL_SCANS, 1800);
+  this->declare_parameter(PARAM_SCAN_PERIOD, 0.1);
+  this->declare_parameter(PARAM_FREQ_DIVIDER, 5);
+  this->declare_parameter(PARAM_EDGE_THRESHOLD, 0.1);
+  this->declare_parameter(PARAM_SURF_THRESHOLD, 0.1);
+  this->declare_parameter(PARAM_DISTANCE, 5.0);
 
   float nearest_dist;
 
@@ -106,6 +96,21 @@ FeatureAssociation::FeatureAssociation(const std::string &name, Channel<Projecti
   }
   if (!this->get_parameter(PARAM_DISTANCE, nearest_dist)) {
     RCLCPP_WARN(this->get_logger(), "Parameter %s not found", PARAM_DISTANCE.c_str());
+  }
+
+  if (_vertical_scans < 2 || _horizontal_scans < 2) {
+    throw std::invalid_argument("laser scan dimensions must both be at least 2");
+  }
+  if (!std::isfinite(_scan_period) || _scan_period <= 0.0F) {
+    throw std::invalid_argument("laser.scan_period must be positive and finite");
+  }
+  if (_mapping_frequency_div < 1) {
+    throw std::invalid_argument("mapping.mapping_frequency_divider must be at least 1");
+  }
+  if (!std::isfinite(_edge_threshold) || _edge_threshold < 0.0F ||
+      !std::isfinite(_surf_threshold) || _surf_threshold < 0.0F ||
+      !std::isfinite(nearest_dist) || nearest_dist <= 0.0F) {
+    throw std::invalid_argument("feature thresholds and search distance are invalid");
   }
 
   _nearest_feature_dist_sqr = nearest_dist*nearest_dist;
@@ -289,9 +294,13 @@ void FeatureAssociation::extractFeatures() {
                    6 -
                1;
 
+      const int cloud_size = static_cast<int>(segmentedCloud->size());
+      sp = std::max(sp, 5);
+      ep = std::min(ep, cloud_size - 6);
+
       if (sp >= ep) continue;
 
-      std::sort(cloudSmoothness.begin() + sp, cloudSmoothness.begin() + ep,
+      std::sort(cloudSmoothness.begin() + sp, cloudSmoothness.begin() + ep + 1,
                 by_value());
 
       int largestPickedNum = 0;
@@ -1321,6 +1330,19 @@ void FeatureAssociation::runFeatureAssociation() {
     segInfo = std::move(projection.seg_msg);
 
     cloudHeader = segInfo.header;
+
+    if (!segmentedCloud || segmentedCloud->size() < 11 ||
+        segInfo.segmented_cloud_range.size() < segmentedCloud->size() ||
+        segInfo.segmented_cloud_col_ind.size() < segmentedCloud->size() ||
+        segInfo.segmented_cloud_ground_flag.size() < segmentedCloud->size() ||
+        segInfo.start_ring_index.size() != static_cast<size_t>(_vertical_scans) ||
+        segInfo.end_ring_index.size() != static_cast<size_t>(_vertical_scans) ||
+        !std::isfinite(segInfo.orientation_diff) ||
+        std::abs(segInfo.orientation_diff) <= 1e-6F) {
+      RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 5000,
+                           "Ignoring sparse or malformed projected scan");
+      continue;
+    }
 
     /**  1. Feature Extraction  */
     adjustDistortion();
