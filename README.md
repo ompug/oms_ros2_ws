@@ -67,6 +67,10 @@ playback for a second run instead of looping timestamps backward.
 
 ## Robot quick start
 
+For a complete Codex handoff on the robot, copy the prompt in
+[`ROBOT_CODEX_PROMPT.md`](ROBOT_CODEX_PROMPT.md) into a new Codex session
+running on the robot.
+
 On the robot, clone the public repository and record its platform before
 installing anything:
 
