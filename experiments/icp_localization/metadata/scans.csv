@@ -1,0 +1,11 @@
+snapshot_id,timestamp_ns,timestamp_sec,pcd_file,frame_id,point_count
+scan_001,1483233803101509333,1483233803.101509333,/home/ompug/oms_ros2_ws/experiments/icp_localization/scans/scan_001.pcd,rslidar,24820
+scan_002,1483233823801511526,1483233823.801511526,/home/ompug/oms_ros2_ws/experiments/icp_localization/scans/scan_002.pcd,rslidar,24651
+scan_003,1483233844401519537,1483233844.401519537,/home/ompug/oms_ros2_ws/experiments/icp_localization/scans/scan_003.pcd,rslidar,24381
+scan_004,1483233865001509428,1483233865.001509428,/home/ompug/oms_ros2_ws/experiments/icp_localization/scans/scan_004.pcd,rslidar,25386
+scan_005,1483233885701513529,1483233885.701513529,/home/ompug/oms_ros2_ws/experiments/icp_localization/scans/scan_005.pcd,rslidar,25853
+scan_006,1483233906301517487,1483233906.301517487,/home/ompug/oms_ros2_ws/experiments/icp_localization/scans/scan_006.pcd,rslidar,25485
+scan_007,1483233927001509428,1483233927.001509428,/home/ompug/oms_ros2_ws/experiments/icp_localization/scans/scan_007.pcd,rslidar,25873
+scan_008,1483233947601517439,1483233947.601517200,/home/ompug/oms_ros2_ws/experiments/icp_localization/scans/scan_008.pcd,rslidar,24333
+scan_009,1483233968201489449,1483233968.201489449,/home/ompug/oms_ros2_ws/experiments/icp_localization/scans/scan_009.pcd,rslidar,24185
+scan_010,1483233988901521444,1483233988.901521444,/home/ompug/oms_ros2_ws/experiments/icp_localization/scans/scan_010.pcd,rslidar,24352

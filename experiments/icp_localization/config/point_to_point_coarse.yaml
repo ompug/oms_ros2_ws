@@ -1,0 +1,19 @@
+readingDataPointsFilters:
+  - RemoveNaNDataPointsFilter
+  - MinDistDataPointsFilter: {minDist: 1.5}
+  - MaxDistDataPointsFilter: {maxDist: 70.0}
+  - VoxelGridDataPointsFilter: {vSizeX: 0.6, vSizeY: 0.6, vSizeZ: 0.6}
+referenceDataPointsFilters:
+  - RemoveNaNDataPointsFilter
+  - VoxelGridDataPointsFilter: {vSizeX: 0.8, vSizeY: 0.8, vSizeZ: 0.8}
+matcher:
+  KDTreeMatcher: {knn: 1, epsilon: 0}
+outlierFilters:
+  - MaxDistOutlierFilter: {maxDist: 2.5}
+  - TrimmedDistOutlierFilter: {ratio: 0.8}
+errorMinimizer: PointToPointErrorMinimizer
+transformationCheckers:
+  - CounterTransformationChecker: {maxIterationCount: 50}
+  - DifferentialTransformationChecker: {minDiffRotErr: 0.0001, minDiffTransErr: 0.001, smoothLength: 4}
+inspector: NullInspector
+logger: NullLogger

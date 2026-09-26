@@ -1,0 +1,28 @@
+Final verification (2026-09-25 execution; report reviewed 2026-09-26)
+
+bash experiments/icp_localization/run_full_experiment.sh
+  Exit status 0, using frozen map and existing processed bag.
+  90 ICP result rows; 10 raw snapshot PCDs; 412 trajectory rows.
+  13 PNG plots; 22 before/after aligned PCD artifacts.
+
+bash -n experiments/icp_localization/scripts/*.sh
+bash -n experiments/icp_localization/run_full_experiment.sh
+python3 -m py_compile experiments/icp_localization/scripts/*.py
+  All succeeded.
+
+colcon test --packages-select lego_loam_sr --event-handlers console_direct+
+colcon test-result --test-result-base build/lego_loam_sr --verbose
+  Summary: 5 tests, 0 errors, 0 failures, 0 skipped.
+
+git diff --check
+  No whitespace errors.
+
+Original old map and preserved copy have identical SHA-256:
+759abc71dc73d0130913ca3a2a1722d88c6b2cb40249dabeb0824675b0213c12
+  lego_maps/lego_loam_final_map.pcd
+  experiments/icp_localization/map/previous_surround_export.pcd
+
+Final point-to-point baseline: mean XY error 0.110277 m;
+mean absolute yaw error 0.727478 deg; 9/10 iteration-converged.
+ICP wall-time mean 0.346544 s, median 0.238450 s, max 1.046071 s.
+Timing variability is discussed in FINAL_REPORT.md; no 10 Hz claim is made.

@@ -4,6 +4,7 @@
 #include "lego_loam/utility.h"
 #include "lego_loam/channel.h"
 #include "lego_loam/nanoflann_pcl.h"
+#include <std_srvs/srv/trigger.hpp>
 
 #include <gtsam/geometry/Pose3.h>
 #include <gtsam/geometry/Rot3.h>
@@ -68,6 +69,8 @@ class MapOptimization : public rclcpp::Node {
   void loopClosureThread();
 
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubLaserCloudSurround;
+  rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubLaserCloudFull;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr exportFullMapService;
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pubOdomAftMapped;
   rclcpp::Publisher<sensor_msgs::msg::PointCloud2>::SharedPtr pubKeyPoses;
 
@@ -227,6 +230,7 @@ class MapOptimization : public rclcpp::Node {
   void publishTF();
   void publishKeyPosesAndFrames();
   void publishGlobalMap();
+  void publishFullMap();
 
   bool detectLoopClosure();
   void performLoopClosure();

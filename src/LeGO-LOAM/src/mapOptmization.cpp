@@ -35,6 +35,7 @@
 //      (IROS). October 2018.
 
 #include "mapOptimization.h"
+#include <std_srvs/srv/trigger.hpp>
 #include <future>
 
 using namespace gtsam;
@@ -56,6 +57,20 @@ MapOptimization::MapOptimization(const std::string &name, Channel<AssociationOut
 
   pubKeyPoses = this->create_publisher<sensor_msgs::msg::PointCloud2>("/key_pose_origin", 2);
   pubLaserCloudSurround = this->create_publisher<sensor_msgs::msg::PointCloud2>("/laser_cloud_surround", 2);
+  pubLaserCloudFull = this->create_publisher<sensor_msgs::msg::PointCloud2>("/laser_cloud_full", 1);
+  exportFullMapService = this->create_service<std_srvs::srv::Trigger>(
+      "/export_full_map",
+      [this](const std::shared_ptr<std_srvs::srv::Trigger::Request>,
+             std::shared_ptr<std_srvs::srv::Trigger::Response> response) {
+        if (cloudKeyPoses3D->empty()) {
+          response->success = false;
+          response->message = "No keyframes have been saved";
+          return;
+        }
+        publishFullMap();
+        response->success = true;
+        response->message = "Published all saved keyframes on /laser_cloud_full";
+      });
   pubOdomAftMapped = this->create_publisher<nav_msgs::msg::Odometry>("/aft_mapped_to_init", 5);
   pubHistoryKeyFrames = this->create_publisher<sensor_msgs::msg::PointCloud2>("/history_cloud", 2);
   pubIcpKeyFrames = this->create_publisher<sensor_msgs::msg::PointCloud2>("/corrected_cloud", 2);
@@ -611,6 +626,35 @@ void MapOptimization::publishGlobalMap() {
   globalMapKeyPosesDS->clear();
   globalMapKeyFrames->clear();
   //globalMapKeyFramesDS->clear();
+}
+
+void MapOptimization::publishFullMap() {
+  pcl::PointCloud<PointType>::Ptr full(new pcl::PointCloud<PointType>());
+  rclcpp::Time stamp;
+  size_t keyframes;
+  {
+    // Loop closure may update all optimized poses; take a consistent snapshot.
+    std::lock_guard<std::mutex> lock(mtx);
+    keyframes = cloudKeyPoses6D->size();
+    for (size_t i = 0; i < keyframes; ++i) {
+      *full += *transformPointCloud(cornerCloudKeyFrames[i], &cloudKeyPoses6D->points[i]);
+      *full += *transformPointCloud(surfCloudKeyFrames[i], &cloudKeyPoses6D->points[i]);
+      *full += *transformPointCloud(outlierCloudKeyFrames[i], &cloudKeyPoses6D->points[i]);
+    }
+    stamp = timeLaserOdometry;
+  }
+  pcl::VoxelGrid<PointType> voxel;
+  voxel.setLeafSize(0.4f, 0.4f, 0.4f);
+  voxel.setInputCloud(full);
+  pcl::PointCloud<PointType> filtered;
+  voxel.filter(filtered);
+  sensor_msgs::msg::PointCloud2 msg;
+  pcl::toROSMsg(filtered, msg);
+  msg.header.stamp = stamp;
+  msg.header.frame_id = "camera_init";
+  pubLaserCloudFull->publish(msg);
+  RCLCPP_INFO(get_logger(), "Published full map: %zu keyframes, %zu points",
+              keyframes, filtered.size());
 }
 
 bool MapOptimization::detectLoopClosure() {

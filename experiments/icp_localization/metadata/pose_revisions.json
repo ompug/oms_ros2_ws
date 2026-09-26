@@ -1,0 +1,84 @@
+{
+  "keyframe_count": 355,
+  "position_revision_percentiles_m": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "keyframes_revised_over_0_1m": 0,
+  "keyframes_revised_over_0_5m": 0,
+  "sampled_scans": {
+    "scan_001": {
+      "nearest_keyframe_index": 4,
+      "keyframe_stamp_ns": 1483233801301511526,
+      "time_delta_ms": 1799.997807,
+      "exact_keyframe": false,
+      "position_revision_m": 0.0
+    },
+    "scan_002": {
+      "nearest_keyframe_index": 22,
+      "keyframe_stamp_ns": 1483233823301511526,
+      "time_delta_ms": 500.0,
+      "exact_keyframe": false,
+      "position_revision_m": 0.0
+    },
+    "scan_003": {
+      "nearest_keyframe_index": 46,
+      "keyframe_stamp_ns": 1483233844301495552,
+      "time_delta_ms": 100.023985,
+      "exact_keyframe": false,
+      "position_revision_m": 0.0
+    },
+    "scan_004": {
+      "nearest_keyframe_index": 87,
+      "keyframe_stamp_ns": 1483233864801507473,
+      "time_delta_ms": 200.001955,
+      "exact_keyframe": false,
+      "position_revision_m": 0.0
+    },
+    "scan_005": {
+      "nearest_keyframe_index": 128,
+      "keyframe_stamp_ns": 1483233885801483393,
+      "time_delta_ms": 99.969864,
+      "exact_keyframe": false,
+      "position_revision_m": 0.0
+    },
+    "scan_006": {
+      "nearest_keyframe_index": 169,
+      "keyframe_stamp_ns": 1483233906301517487,
+      "time_delta_ms": 0.0,
+      "exact_keyframe": true,
+      "position_revision_m": 0.0
+    },
+    "scan_007": {
+      "nearest_keyframe_index": 210,
+      "keyframe_stamp_ns": 1483233926801501513,
+      "time_delta_ms": 200.007915,
+      "exact_keyframe": false,
+      "position_revision_m": 0.0
+    },
+    "scan_008": {
+      "nearest_keyframe_index": 252,
+      "keyframe_stamp_ns": 1483233947801523447,
+      "time_delta_ms": 200.006008,
+      "exact_keyframe": false,
+      "position_revision_m": 0.0
+    },
+    "scan_009": {
+      "nearest_keyframe_index": 293,
+      "keyframe_stamp_ns": 1483233968301507473,
+      "time_delta_ms": 100.018024,
+      "exact_keyframe": false,
+      "position_revision_m": 0.0
+    },
+    "scan_010": {
+      "nearest_keyframe_index": 334,
+      "keyframe_stamp_ns": 1483233988801519394,
+      "time_delta_ms": 100.00205,
+      "exact_keyframe": false,
+      "position_revision_m": 0.0
+    }
+  }
+}

@@ -1,0 +1,14 @@
+generated_utc: 2026-09-25T19:29:13.959520+00:00
+source_bag: experiments/icp_localization/bags/lego_2026_09_11_full
+source_topic: /laser_cloud_full
+procedure: /export_full_map after playback; all saved corner, surface and outlier keyframes; 0.4 m voxel
+frame_id: camera_init
+stamp_ns: 1483234004101509333
+map_messages: 1
+keyposes_at_end: 355
+max_keypose_distance_from_final_m: 61.831524
+point_count: 131729
+fields: x y z intensity
+voxel_resolution_m: 0.4 output cloud; all keyframes
+bbox_min_m: [-49.793827056884766, -2.3864948749542236, -67.51290893554688]
+bbox_max_m: [102.60809326171875, 16.390138626098633, 63.54882049560547]
