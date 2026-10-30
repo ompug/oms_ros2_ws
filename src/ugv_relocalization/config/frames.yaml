@@ -1,0 +1,16 @@
+# Frame conventions. T_A_B maps points in B into A (= pose of B in A).
+#
+# LeGO featureAssociation.cpp: (x,y,z)_camera = (y,z,x)_rslidar.
+camera_from_rslidar:
+  - [0.0, 1.0, 0.0]
+  - [0.0, 0.0, 1.0]
+  - [1.0, 0.0, 0.0]
+# Reference-only map -> camera_init rotation from run.launch.py
+# (yaw = +pi/2, pitch = 0, roll = +pi/2, intrinsic ZYX). It equals the
+# transpose of camera_from_rslidar, so "map" is camera_init in ROS axes
+# (x forward, y left, z up at the first LiDAR frame). Not a surveyed alignment.
+map_from_camera_init_euler_zyx_rad: [1.5707963267948966, 0.0, 1.5707963267948966]
+# Frame name written next to every saved PCD; use it as the RViz fixed frame.
+pcd_frame_id: camera_init
+# Until T_base_link_rslidar is measured, every pose is this:
+pose_label: "LiDAR (rslidar) pose in map frame; T_base_link_rslidar unmeasured"

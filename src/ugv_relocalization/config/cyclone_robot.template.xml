@@ -1,0 +1,5 @@
+<!-- Reconstructed from previous_agx_work/start_robot_base.sh, NOT the missing cyclone_robot.xml.
+     Use the real robot's ~/cyclone_robot.xml for deployment. Confirm interface on the Scout. -->
+<CycloneDDS><Domain><General><Interfaces>
+<NetworkInterface name="wlx00106034d494" multicast="true"/>
+</Interfaces></General><Discovery><Peers><Peer address="192.168.12.1"/></Peers></Discovery></Domain></CycloneDDS>

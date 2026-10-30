@@ -1,0 +1,5 @@
+# Startup pipeline: global proposal -> fine ICP on candidates + challengers -> gate.
+max_global_candidates: 5         # refine at most this many of the global method's candidates
+challengers:                     # alternative hypotheses around the best refined pose
+  yaw_offsets_deg: [90, 180, 270]
+  shifts_m: 3.0                  # +-x, +-y in map

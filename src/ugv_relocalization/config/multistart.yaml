@@ -1,0 +1,30 @@
+# Feature-free control: ground height from the scan, grid x yaw correlative search, short ICP.
+name: multistart
+method: multistart
+scan:
+  min_range: 1.5
+  max_range: 50.0
+  voxel: 0.5
+voxel: 0.5                    # map downsampling for ground cells and the hit-count KD-tree
+normal_radius: 1.5
+normal_max_nn: 30
+ground_normal_thresh_deg: 20.0
+grid_spacing: 1.0
+cell_height_percentile: 0.1
+yaw_steps: 72
+coarse_points: 300
+hit_radius: 0.5
+top_k: 10
+nms_radius: 5.0
+nms_yaw_deg: 20.0
+ground_ransac:
+  ground_thresh: 0.15
+  iterations: 200
+  max_tilt_deg: 15.0
+  min_inlier_frac: 0.1
+nonground_margin: 0.3
+refine_voxel: 0.5
+refine_max_dist: 2.0
+refine_iterations: 50
+position_chunk: 4000
+seed: 0

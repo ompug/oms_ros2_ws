@@ -1,0 +1,10 @@
+# Open3D point-to-plane ICP, Tukey robust kernel. Map voxel/normals computed once.
+name: o3d_p2plane_tukey
+library: open3d
+variant: point_to_plane
+scan: {min_range: 1.5, max_range: 70.0, min_points: 10}
+map: {voxel: 0.5, normal_radius: 1.5, normal_max_nn: 30}
+kernel: {type: tukey, scale: 0.5}          # type: tukey | huber; scale in metres
+stages:                                     # coarse -> fine; scan voxel per stage
+  - {voxel: 0.35, max_corr_dist: 2.5, max_iter: 50}
+convergence: {relative_fitness: 1.0e-6, relative_rmse: 1.0e-6}

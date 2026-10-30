@@ -1,0 +1,41 @@
+# Adapted from ~/previous_agx_work/ugv_ws/src/config/navigation.yaml
+ugv_planner:
+  ros__parameters:
+    start_node: A
+    goal_node: F
+    auto_plan_on_start: false
+
+ugv_waypoint_manager:
+  ros__parameters:
+    start_node: A
+    odom_topic: /lego/odometry
+    map_frame: map
+    odom_frame: odom
+    goal_tolerance: 0.75
+    linear_speed_limit: 0.2
+    angular_speed_limit: 0.35
+    yaw_kp: 0.8
+    control_rate: 10.0
+    heartbeat_rate: 10.0
+    # dense waypoint following
+    waypoint_spacing_m: 0.75
+    frame_id: map
+    lookahead_distance: 1.5    # raised from 1.0: carrot past sub-node kinks, smoother
+    # control-layer noise rejection (anti zig-zag)
+    pose_ema_alpha: 0.3
+    angular_deadband: 0.06
+    angular_accel_limit: 2.0
+    near_waypoint_dist: 0.25
+    near_gain_scale: 0.6
+    linear_floor: 0.3
+
+ugv_safety:
+  ros__parameters:
+    heartbeat_timeout_sec: 0.5
+    cmd_timeout_sec: 0.5
+    publish_rate: 20.0
+
+ugv_graph_viz:
+  ros__parameters:
+    frame_id: map
+    publish_rate: 2.0

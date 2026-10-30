@@ -1,0 +1,17 @@
+# Verification gate (E4 tunes the thresholds; see DECISIONS.md D-16).
+features:
+  scan: {min_range: 1.5, max_range: 50.0, voxel: 0.3}
+  tight_distance_m: 0.3          # inlier distance for the score
+  loose_distance_m: 2.5          # Phase 1 gate, logged for comparison
+  map_voxel: 0.0                 # KD-tree on the raw map
+  ground: {ground_thresh: 0.15, iterations: 200, max_tilt_deg: 15.0, min_inlier_frac: 0.1,
+           nonground_margin: 0.3, seed: 0}
+distinct:                        # two refined poses are "different hypotheses" if apart by
+  min_xy_m: 1.0
+  min_yaw_deg: 5.0
+thresholds:                      # initial values; E4 writes tuned ones to configs/gate_tuned.yaml
+  min_struct_inlier: 0.5
+  max_abs_roll_deg: 5.0
+  max_abs_pitch_deg: 5.0
+  max_ambiguity_ratio: 0.9       # second-best / best structure score
+  require_converged: false

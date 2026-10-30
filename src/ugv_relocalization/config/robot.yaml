@@ -1,0 +1,14 @@
+ugv_relocalization:
+  ros__parameters:
+    mode: rough
+    period_s: 5.0
+    max_correction_m: 0.25
+    max_correction_deg: 2.0
+    max_startup_m: 3.0
+    max_startup_deg: 15.0
+    coverage_radius_m: 5.0
+    coverage_min_points: 30
+    scan_topic: /rslidar_points
+    odometry_topic: /integrated_to_init
+    required_domain_id: 42
+    publish_initialpose: true
